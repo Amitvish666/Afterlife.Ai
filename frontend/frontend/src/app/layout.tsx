@@ -2,9 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import { Providers } from './providers';
 import '../styles/globals.css';
 
-export const metadataBase = new URL('https://mshfsfbgvinbotzcsyxb.supabase.co');
-
 export const metadata: Metadata = {
+  metadataBase: new URL('https://mshfsfbgvinbotzcsyxb.supabase.co'),
   title: {
     default: 'Beyond Life AI - Preserve Memories, Connect Forever',
     template: '%s | Beyond Life AI',
