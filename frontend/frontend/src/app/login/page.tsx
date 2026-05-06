@@ -21,6 +21,17 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(true); // Default to true for persistence
   const processedOAuth = useRef(false);
 
+  // Handle URL errors
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const error = searchParams.get('error');
+    if (error) {
+      toast.error(`Authentication error: ${error.replace(/_/g, ' ')}`);
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
   // Check for existing session on mount and auto-login
   useEffect(() => {
     const checkExistingSession = async () => {
@@ -160,7 +171,7 @@ export default function LoginPage() {
         // Double check if we already have a token in local storage (maybe first useEffect already got it)
         if (localStorage.getItem('access_token') || sessionStorage.getItem('access_token')) {
           console.log('Token already in storage, likely handled by existing session check.');
-          router.replace('/dashboard');
+          // Do not redirect here; let checkExistingSession handle fetching profile and redirecting.
           return;
         }
 

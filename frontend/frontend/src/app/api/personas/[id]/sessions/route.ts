@@ -1,25 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { sessionsDb, addSession, persistData } from '../../../auth/db';
+import { getSessionsForPersona, addSession, type ChatSession } from '../../../auth/db';
 
-const SECRET_KEY = 'your-secret-key-change-in-production';
-
-// In-memory session storage
-interface ChatSession {
-  id: string;
-  persona_id: string;
-  user_id: string;
-  title: string;
-  message_count: number;
-  created_at: string;
-  updated_at: string;
-}
+const SECRET_KEY = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 function verifyToken(request: NextRequest): { userId: string; email: string } | null {
   const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
+  if (!authHeader?.startsWith('Bearer ')) return null;
 
   const token = authHeader.substring(7);
   try {
@@ -31,36 +18,12 @@ function verifyToken(request: NextRequest): { userId: string; email: string } | 
 }
 
 // GET - List sessions for a persona
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    // For API routes, we need to check auth header
-    // Try to get user from auth header first
-    let user: { userId: string; email: string } | null = null;
-    
-    const authHeader = request.headers.get('authorization');
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      try {
-        const decoded = jwt.verify(token, SECRET_KEY) as { sub: string; email: string };
-        user = { userId: decoded.sub, email: decoded.email };
-      } catch (e) {
-        console.error('Token verification failed:', e);
-      }
-    }
-    
-    // If no token from header, try browser localStorage (client-side)
-    if (!user && typeof window !== 'undefined') {
-      try {
-        const userStored = localStorage.getItem('auth-storage');
-        const userData = userStored ? JSON.parse(userStored) : null;
-        if (userData?.state?.user) {
-          user = { userId: userData.state.user.id, email: userData.state.user.email };
-        }
-      } catch (e) {
-        console.error('Browser auth error:', e);
-      }
-    }
-    
+    const user = verifyToken(request);
     if (!user) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
@@ -69,16 +32,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     const personaId = params.id;
-    
-    // Get sessions for this persona
-    const sessions = Object.values(sessionsDb)
-      .filter(s => s.persona_id === personaId && s.user_id === user.userId)
-      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+    const sessions = await getSessionsForPersona(personaId, user.userId);
 
-    return NextResponse.json({
-      success: true,
-      data: sessions,
-    });
+    return NextResponse.json({ success: true, data: sessions });
   } catch (error) {
     console.error('Get sessions error:', error);
     return NextResponse.json(
@@ -89,45 +45,17 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // POST - Create a new session
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    let user: { userId: string; email: string } | null = null;
-    
-    // For API routes, try auth header first
-    const authHeader = request.headers.get('authorization');
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      try {
-        const decoded = jwt.verify(token, SECRET_KEY) as { sub: string; email: string };
-        user = { userId: decoded.sub, email: decoded.email };
-      } catch (e) {
-        console.error('Token verification failed:', e);
-      }
-    }
-    
-    // If no token, try browser localStorage (client-side)
-    if (!user && typeof window !== 'undefined') {
-      try {
-        const userStored = localStorage.getItem('auth-storage');
-        const userData = userStored ? JSON.parse(userStored) : null;
-        if (userData?.state?.user) {
-          user = { userId: userData.state.user.id, email: userData.state.user.email };
-        }
-      } catch (e) {
-        console.error('Browser auth error:', e);
-      }
-    }
-
-    // Server-side token verification fallback
+    const user = verifyToken(request);
     if (!user) {
-      const serverUser = verifyToken(request);
-      if (!serverUser) {
-        return NextResponse.json(
-          { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-          { status: 401 }
-        );
-      }
-      user = serverUser;
+      return NextResponse.json(
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+        { status: 401 }
+      );
     }
 
     const personaId = params.id;
@@ -144,13 +72,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       updated_at: new Date().toISOString(),
     };
 
-    sessionsDb[session.id] = session;
-    persistData();
+    const created = await addSession(session);
 
-    return NextResponse.json({
-      success: true,
-      data: session,
-    });
+    return NextResponse.json({ success: true, data: created });
   } catch (error) {
     console.error('Create session error:', error);
     return NextResponse.json(

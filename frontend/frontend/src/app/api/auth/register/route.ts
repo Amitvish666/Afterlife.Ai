@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
-import { usersDb, hashPassword } from '../db';
+import { getUserByEmail, createUser, userExistsByEmail, hashPassword } from '../db';
 
-const SECRET_KEY = 'your-secret-key-change-in-production';
+const SECRET_KEY = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const ALGORITHM = 'HS256';
 const ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7; // 7 days
 const REFRESH_TOKEN_EXPIRE_DAYS = 30;
@@ -31,35 +31,36 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    if (usersDb[email]) {
+    const exists = await userExistsByEmail(email);
+    if (exists) {
       return NextResponse.json(
         { success: false, error: { code: 'EMAIL_EXISTS', message: 'Email already registered' } },
         { status: 400 }
       );
     }
 
-    // Create new user
+    // Create new user in Supabase
     const userId = uuidv4();
-    usersDb[email] = {
+    const user = await createUser({
       id: userId,
       email,
       name: name || email.split('@')[0],
       passwordHash: hashPassword(password),
       createdAt: new Date().toISOString(),
-    };
+    });
 
-    const accessToken = createAccessToken({ sub: userId, email });
-    const refreshToken = createRefreshToken({ sub: userId });
+    const accessToken = createAccessToken({ sub: user.id, email: user.email });
+    const refreshToken = createRefreshToken({ sub: user.id });
 
     return NextResponse.json(
       {
         success: true,
         data: {
           user: {
-            id: userId,
-            email,
-            name: usersDb[email].name,
-            created_at: usersDb[email].createdAt,
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            created_at: user.createdAt,
           },
           tokens: {
             access_token: accessToken,

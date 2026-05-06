@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { personasDb, tasksDb, addPersona, addTask, getTasksForPersona, deleteTask, persistData, type Persona, type Task } from '../auth/db';
+import {
+  getPersonasByUser,
+  addPersona,
+  addTask,
+  updateTask,
+  deleteTask,
+  getTasksForPersona,
+  type Persona,
+  type Task,
+} from '../auth/db';
 
-const SECRET_KEY = 'your-secret-key-change-in-production';
+const SECRET_KEY = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 function verifyToken(request: NextRequest): { userId: string; email: string } | null {
   const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
+  if (!authHeader?.startsWith('Bearer ')) return null;
 
   const token = authHeader.substring(7);
   try {
@@ -29,18 +36,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user's personas with tasks
-    const userPersonas = Object.values(personasDb)
-      .filter(p => p.user_id === user.userId)
-      .map(persona => ({
-        ...persona,
-        tasks: Object.values(tasksDb).filter(t => t.persona_id === persona.id),
-      }));
+    const userPersonas = await getPersonasByUser(user.userId);
 
-    return NextResponse.json({
-      success: true,
-      data: userPersonas,
-    });
+    // Attach tasks for each persona
+    const personasWithTasks = await Promise.all(
+      userPersonas.map(async (persona) => ({
+        ...persona,
+        tasks: await getTasksForPersona(persona.id),
+      }))
+    );
+
+    return NextResponse.json({ success: true, data: personasWithTasks });
   } catch (error) {
     console.error('Get personas error:', error);
     return NextResponse.json(
@@ -70,7 +76,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create persona with persistence
     const persona: Persona = {
       id: Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9),
       user_id: user.userId,
@@ -82,12 +87,9 @@ export async function POST(request: NextRequest) {
       created_at: new Date().toISOString(),
     };
 
-    addPersona(persona);
+    const created = await addPersona(persona);
 
-    return NextResponse.json({
-      success: true,
-      data: persona,
-    });
+    return NextResponse.json({ success: true, data: created });
   } catch (error) {
     console.error('Create persona error:', error);
     return NextResponse.json(
@@ -97,7 +99,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Task endpoints
 export async function PUT(request: NextRequest) {
   try {
     const user = verifyToken(request);
@@ -112,7 +113,6 @@ export async function PUT(request: NextRequest) {
     const { action, persona_id, task_id, ...taskData } = body;
 
     if (action === 'createTask') {
-      // Create a new task
       const task: Task = {
         id: Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9),
         persona_id,
@@ -122,51 +122,29 @@ export async function PUT(request: NextRequest) {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-
-      addTask(task);
-
-      return NextResponse.json({
-        success: true,
-        data: task,
-      });
+      const created = await addTask(task);
+      return NextResponse.json({ success: true, data: created });
     }
 
     if (action === 'updateTask' && task_id) {
-      // Update task progress
-      const existingTask = tasksDb[task_id];
-      if (!existingTask) {
+      const updated = await updateTask(task_id, taskData);
+      if (!updated) {
         return NextResponse.json(
           { success: false, error: { code: 'NOT_FOUND', message: 'Task not found' } },
           { status: 404 }
         );
       }
-
-      const updatedTask = { ...existingTask, ...taskData, updated_at: new Date().toISOString() };
-      tasksDb[task_id] = updatedTask;
-      persistData();
-
-      return NextResponse.json({
-        success: true,
-        data: updatedTask,
-      });
+      return NextResponse.json({ success: true, data: updated });
     }
 
     if (action === 'deleteTask' && task_id) {
-      deleteTask(task_id);
-
-      return NextResponse.json({
-        success: true,
-        message: 'Task deleted successfully',
-      });
+      await deleteTask(task_id);
+      return NextResponse.json({ success: true, message: 'Task deleted successfully' });
     }
 
     if (action === 'getTasks' && persona_id) {
-      const personaTasks = getTasksForPersona(persona_id);
-
-      return NextResponse.json({
-        success: true,
-        data: personaTasks,
-      });
+      const tasks = await getTasksForPersona(persona_id);
+      return NextResponse.json({ success: true, data: tasks });
     }
 
     return NextResponse.json(

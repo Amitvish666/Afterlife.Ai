@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { usersDb, verifyPassword } from '../db';
+import { getUserByEmail, verifyPassword } from '../db';
 
-const SECRET_KEY = 'your-secret-key-change-in-production';
+const SECRET_KEY = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const ALGORITHM = 'HS256';
 const ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7; // 7 days
 const REFRESH_TOKEN_EXPIRE_DAYS = 30;
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = usersDb[email];
+    const user = await getUserByEmail(email);
     if (!user) {
       return NextResponse.json(
         { success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' } },
@@ -44,28 +44,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const accessToken = createAccessToken({ sub: user.id, email });
+    const accessToken = createAccessToken({ sub: user.id, email: user.email });
     const refreshToken = createRefreshToken({ sub: user.id });
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          user: {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            created_at: user.createdAt,
-          },
-          tokens: {
-            access_token: accessToken,
-            refresh_token: refreshToken,
-            token_type: 'bearer',
-            expires_in: ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-          },
+    return NextResponse.json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          created_at: user.createdAt,
         },
-      }
-    );
+        tokens: {
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          token_type: 'bearer',
+          expires_in: ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        },
+      },
+    });
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(

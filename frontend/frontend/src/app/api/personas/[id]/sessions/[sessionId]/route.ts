@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { sessionsDb, deleteSession, persistData } from '../../../../auth/db';
+import { getSessionById, deleteSession } from '../../../../auth/db';
 
-const SECRET_KEY = 'your-secret-key-change-in-production';
+const SECRET_KEY = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 function verifyToken(request: NextRequest): { userId: string; email: string } | null {
   const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
+  if (!authHeader?.startsWith('Bearer ')) return null;
 
   const token = authHeader.substring(7);
   try {
@@ -35,7 +33,7 @@ export async function DELETE(
 
     const { sessionId } = params;
 
-    const session = sessionsDb[sessionId];
+    const session = await getSessionById(sessionId);
     if (!session) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Session not found' } },
@@ -50,13 +48,9 @@ export async function DELETE(
       );
     }
 
-    deleteSession(sessionId);
-    persistData();
+    await deleteSession(sessionId);
 
-    return NextResponse.json({
-      success: true,
-      message: 'Session deleted successfully',
-    });
+    return NextResponse.json({ success: true, message: 'Session deleted successfully' });
   } catch (error) {
     console.error('Delete session error:', error);
     return NextResponse.json(

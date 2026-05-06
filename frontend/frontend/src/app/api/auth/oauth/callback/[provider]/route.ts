@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
+import { getUserByEmail, createUser, hashPassword } from '../../../db';
 
-const SECRET_KEY = 'your-secret-key-change-in-production';
+const SECRET_KEY = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const ALGORITHM = 'HS256';
 const ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7;
 const REFRESH_TOKEN_EXPIRE_DAYS = 30;
-
-// In-memory storage for users (in production, use a database)
-const usersDb: Record<string, { id: string; email: string; name: string; passwordHash: string; createdAt: string }> = {};
 
 function createAccessToken(data: { sub: string; email: string }): string {
   const expire = Math.floor(Date.now() / 1000) + ACCESS_TOKEN_EXPIRE_MINUTES * 60;
@@ -19,25 +17,13 @@ function createRefreshToken(data: { sub: string }): string {
   return jwt.sign({ ...data, exp: expire }, SECRET_KEY, { algorithm: ALGORITHM });
 }
 
-function hashPassword(password: string): string {
-  let hash = 0;
-  for (let i = 0; i < password.length; i++) {
-    const char = password.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return hash.toString(16);
-}
-
 // Google OAuth configuration
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'your-google-client-id.apps.googleusercontent.com';
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || 'your-google-client-secret';
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/auth/oauth/callback/google';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 
 // GitHub OAuth configuration
-const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || 'your-github-client-id';
-const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || 'your-github-client-secret';
-const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || 'http://localhost:3000/api/auth/oauth/callback/github';
+const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || '';
+const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || '';
 
 export async function GET(request: NextRequest, { params }: { params: { provider: string } }) {
   const provider = params.provider;
@@ -55,8 +41,12 @@ export async function GET(request: NextRequest, { params }: { params: { provider
   try {
     let userData: { email: string; name: string } | null = null;
 
+    const host = request.headers.get('host') || request.nextUrl.host;
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const dynamicGoogleRedirectUri = `${protocol}://${host}/api/auth/oauth/callback/google`;
+    const dynamicGithubRedirectUri = `${protocol}://${host}/api/auth/oauth/callback/github`;
+
     if (provider === 'google') {
-      // Exchange code for tokens with Google
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -64,7 +54,7 @@ export async function GET(request: NextRequest, { params }: { params: { provider
           code,
           client_id: GOOGLE_CLIENT_ID,
           client_secret: GOOGLE_CLIENT_SECRET,
-          redirect_uri: GOOGLE_REDIRECT_URI,
+          redirect_uri: dynamicGoogleRedirectUri,
           grant_type: 'authorization_code',
         }),
       });
@@ -72,20 +62,19 @@ export async function GET(request: NextRequest, { params }: { params: { provider
       const tokens = await tokenResponse.json();
 
       if (!tokens.access_token) {
+        console.error('[OAuth] Google token exchange failed:', tokens);
         return NextResponse.redirect(new URL('/login?error=token_failed', request.url));
       }
 
-      // Get user info from Google
       const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
         headers: { Authorization: `Bearer ${tokens.access_token}` },
       });
 
       userData = await userResponse.json();
     } else if (provider === 'github') {
-      // Exchange code for tokens with GitHub
       const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
@@ -93,7 +82,7 @@ export async function GET(request: NextRequest, { params }: { params: { provider
           code,
           client_id: GITHUB_CLIENT_ID,
           client_secret: GITHUB_CLIENT_SECRET,
-          redirect_uri: GITHUB_REDIRECT_URI,
+          redirect_uri: dynamicGithubRedirectUri,
         }),
       });
 
@@ -103,24 +92,22 @@ export async function GET(request: NextRequest, { params }: { params: { provider
         return NextResponse.redirect(new URL('/login?error=token_failed', request.url));
       }
 
-      // Get user info from GitHub
       const userResponse = await fetch('https://api.github.com/user', {
-        headers: { 
+        headers: {
           Authorization: `Bearer ${tokens.access_token}`,
           Accept: 'application/vnd.github.v3+json',
         },
       });
 
       const userInfo = await userResponse.json();
-      
-      // Get user email from GitHub
+
       const emailResponse = await fetch('https://api.github.com/user/emails', {
-        headers: { 
+        headers: {
           Authorization: `Bearer ${tokens.access_token}`,
           Accept: 'application/vnd.github.v3+json',
         },
       });
-      
+
       const emails = await emailResponse.json();
       const primaryEmail = emails.find((e: any) => e.primary)?.email || emails[0]?.email;
 
@@ -136,71 +123,73 @@ export async function GET(request: NextRequest, { params }: { params: { provider
       return NextResponse.redirect(new URL('/login?error=no_user_data', request.url));
     }
 
-    // Check if user exists or create new one
-    let user = usersDb[userData.email];
-    
+    // Check if user exists in Supabase or create new
+    let user = await getUserByEmail(userData.email);
+
     if (!user) {
-      // Create new user
-      user = {
+      user = await createUser({
         id: `oauth-${provider}-${Date.now()}`,
         email: userData.email,
         name: userData.name || `${provider} User`,
         passwordHash: hashPassword(`oauth-${provider}-${Date.now()}`),
         createdAt: new Date().toISOString(),
-      };
-      usersDb[userData.email] = user;
+      });
     }
 
-    // Create tokens
     const accessToken = createAccessToken({ sub: user.id, email: user.email });
     const refreshToken = createRefreshToken({ sub: user.id });
 
-    // Redirect to frontend with tokens
-    const redirectUrl = new URL('/login', request.url);
-    redirectUrl.searchParams.set('oauth_success', 'true');
-    
-    const response = NextResponse.redirect(redirectUrl);
-    
-    // Set cookies - httpOnly: false allows client-side JS to read them
-    response.cookies.set('access_token', accessToken, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    });
-    
-    response.cookies.set('refresh_token', refreshToken, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-    });
+    // Use a self-submitting HTML page to store tokens in localStorage then redirect.
+    // We encode the values to safely embed them in the script.
+    const encodedAccessToken = JSON.stringify(accessToken);
+    const encodedRefreshToken = JSON.stringify(refreshToken);
+    const encodedUserId = JSON.stringify(user.id);
+    const encodedUserName = JSON.stringify(user.name);
+    const encodedUserEmail = JSON.stringify(user.email);
 
-    // Also set localStorage for client-side access
-    response.cookies.set('oauth_user_id', user.id, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    });
-    
-    response.cookies.set('oauth_user_name', user.name, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    });
-    
-    response.cookies.set('oauth_user_email', user.email, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    const html = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Signing you in...</title>
+    <style>
+      body { background-color: #020617; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; margin: 0; }
+      .container { text-align: center; }
+      .spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #a855f7; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="spinner"></div>
+      <div>Signing you in...</div>
+    </div>
+    <script>
+      try {
+        var accessToken = ${encodedAccessToken};
+        var refreshToken = ${encodedRefreshToken};
+        var userId = ${encodedUserId};
+        var userName = ${encodedUserName};
+        var userEmail = ${encodedUserEmail};
+
+        localStorage.setItem('access_token', accessToken);
+        localStorage.setItem('refresh_token', refreshToken);
+        localStorage.setItem('remember_me', 'true');
+        localStorage.setItem('oauth_user_id', userId);
+        localStorage.setItem('oauth_user_name', userName);
+        localStorage.setItem('oauth_user_email', userEmail);
+      } catch(e) {
+        console.error('Failed to store tokens', e);
+      }
+      window.location.replace('/dashboard');
+    </script>
+  </body>
+</html>`;
+
+    const response = new NextResponse(html, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+      },
     });
 
     return response;

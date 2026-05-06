@@ -114,6 +114,34 @@ export default function DashboardPage() {
     audio: [] as string[],
   });
 
+  // Bootstrap OAuth session: if the OAuth callback stored user info in localStorage, hydrate the store
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const oauthUserId = localStorage.getItem('oauth_user_id');
+    const oauthUserName = localStorage.getItem('oauth_user_name');
+    const oauthUserEmail = localStorage.getItem('oauth_user_email');
+    const accessToken = localStorage.getItem('access_token');
+
+    if (oauthUserId && oauthUserEmail && accessToken && !useAuthStore.getState().user) {
+      const oauthUser = {
+        id: oauthUserId,
+        name: oauthUserName || oauthUserEmail.split('@')[0] || 'User',
+        email: oauthUserEmail,
+        created_at: new Date().toISOString(),
+        consent_given: false,
+        retention_period: 365,
+      };
+      useAuthStore.getState().setUser(oauthUser);
+      toast.success('Welcome! Signed in with Google');
+    }
+
+    // Clean up temporary OAuth keys regardless
+    localStorage.removeItem('oauth_user_id');
+    localStorage.removeItem('oauth_user_name');
+    localStorage.removeItem('oauth_user_email');
+  }, []);
+
   // Initialize personas from localStorage on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {

@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { personasDb, getMemoriesForPersona } from '../../../auth/db';
 import jwt from 'jsonwebtoken';
+import { getMemoriesForPersona } from '../../../auth/db';
 
-const SECRET_KEY = 'your-secret-key-change-in-production';
+const SECRET_KEY = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 function verifyToken(request: NextRequest): { userId: string; email: string } | null {
   const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
+  if (!authHeader?.startsWith('Bearer ')) return null;
 
   const token = authHeader.substring(7);
   try {
@@ -19,7 +17,10 @@ function verifyToken(request: NextRequest): { userId: string; email: string } | 
   }
 }
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const user = verifyToken(request);
     if (!user) {
@@ -30,12 +31,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     const personaId = params.id;
-    const memories = getMemoriesForPersona(personaId);
+    const memories = await getMemoriesForPersona(personaId);
 
-    return NextResponse.json({
-      success: true,
-      data: memories
-    });
+    return NextResponse.json({ success: true, data: memories });
   } catch (error) {
     console.error('List memories error:', error);
     return NextResponse.json(

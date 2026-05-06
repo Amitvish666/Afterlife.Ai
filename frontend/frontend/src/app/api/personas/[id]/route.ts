@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { personasDb, deletePersona, persistData } from '../../auth/db';
+import { getPersonaById, deletePersona } from '../../auth/db';
 
-const SECRET_KEY = 'your-secret-key-change-in-production';
+const SECRET_KEY = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 function verifyToken(request: NextRequest): { userId: string; email: string } | null {
   const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
+  if (!authHeader?.startsWith('Bearer ')) return null;
 
   const token = authHeader.substring(7);
   try {
@@ -19,11 +17,13 @@ function verifyToken(request: NextRequest): { userId: string; email: string } | 
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   console.log('DELETE request received for persona:', params.id);
   try {
     const user = verifyToken(request);
-    console.log('User verified:', user);
     if (!user) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
@@ -32,8 +32,6 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     const personaId = params.id;
-    console.log('Attempting to delete persona:', personaId);
-
     if (!personaId) {
       return NextResponse.json(
         { success: false, error: { code: 'MISSING_FIELDS', message: 'Persona ID is required' } },
@@ -41,9 +39,8 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       );
     }
 
-    // Verify ownership
-    const persona = personasDb[personaId];
-    console.log('Found persona:', persona);
+    // Verify ownership via Supabase
+    const persona = await getPersonaById(personaId);
     if (!persona) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Persona not found' } },
@@ -52,23 +49,21 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     if (persona.user_id !== user.userId) {
-      console.log('Ownership check failed: persona.user_id:', persona.user_id, 'user.userId:', user.userId);
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Not authorized to delete this persona' } },
         { status: 403 }
       );
     }
 
-    console.log('Deleting persona...');
-    const deleted = deletePersona(personaId);
-    console.log('Delete result:', deleted);
-    persistData();
-    console.log('Persona deleted successfully');
+    const deleted = await deletePersona(personaId);
+    if (!deleted) {
+      return NextResponse.json(
+        { success: false, error: { code: 'SERVER_ERROR', message: 'Failed to delete persona' } },
+        { status: 500 }
+      );
+    }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Persona deleted successfully',
-    });
+    return NextResponse.json({ success: true, message: 'Persona deleted successfully' });
   } catch (error) {
     console.error('Delete persona error:', error);
     return NextResponse.json(

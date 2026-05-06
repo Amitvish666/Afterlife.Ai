@@ -98,7 +98,7 @@ export const apiClient = {
   logout: () => api.post('/auth/logout'),
   
   // Users
-  getProfile: () => api.get<ApiResponse<unknown>>('/users/me'),
+  getProfile: () => api.get<ApiResponse<unknown>>('/auth/me'),
   
   updateProfile: (data: Partial<{ name: string; avatar: string }>) =>
     api.put<ApiResponse<unknown>>('/users/me', data),
