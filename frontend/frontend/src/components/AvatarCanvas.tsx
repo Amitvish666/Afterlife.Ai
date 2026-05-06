@@ -180,7 +180,8 @@ export default function AvatarCanvas({ isTalking, text: _text, showControls: _s 
       const ph = PHONEME_SHAPES[s.phonemeIndex];
       
       // Speech energy: A more fluid pulse that doesn't hit zero during words
-      const speechEnergy = 0.45 + 0.55 * Math.pow(Math.sin((s.phonemeTimer / currentInterval) * Math.PI), 0.4);
+      // Use Math.max(0, ...) to avoid NaN from Math.pow if sin is slightly negative due to timing
+      const speechEnergy = 0.45 + 0.55 * Math.pow(Math.max(0, Math.sin((s.phonemeTimer / currentInterval) * Math.PI)), 0.4);
 
       // Target mouth openness combining phoneme base and speech energy
       // Added a minimum "mumble" threshold (0.12) so the mouth is always visibly active while talking

@@ -6,11 +6,16 @@ console.log('[Startup] OLLAMA_BASE_URL:', process.env.OLLAMA_BASE_URL);
 
 function detectBackendEmotion(text: string): string {
   const t = text.toLowerCase();
-  if (/\b(wow|amazing|incredible|fantastic|wonderful|love|joy|hugs|hug)\b|!{2,}/.test(t) || /\*(hugs?|smiles?|laughs?|grins?)\*/.test(t)) return 'excited';
-  if (/\b(happy|glad|great|good|excellent|awesome|smile)\b/.test(t)) return 'happy';
-  if (/\b(sad|sorry|miss|lost|grief|cry|difficult|hard|tears)\b/.test(t) || /\*(cries|sighs|frowns)\*/.test(t)) return 'sad';
-  if (/\b(hmm|think|wonder|consider|maybe|perhaps|well)\b|\?/.test(t) || /\*(thinks|ponders)\*/.test(t)) return 'thinking';
-  if (/\b(oh|wow|whoa|really|seriously|what|unbelievable)\b/.test(t) || /\*(gasps|surprised)\*/.test(t)) return 'surprised';
+  // Excited: वाह, अद्भुत, कमाल, बेहतरीन, जबरदस्त, शानदार
+  if (/\b(wow|amazing|incredible|fantastic|wonderful|love|joy|hugs|hug|wah|adbhut|kamaal|behtareen|zabardast|shaandaar)\b|!{2,}|(वाह|अद्भुत|कमाल|बेहतरीन|जबरदस्त|शानदार)/.test(t) || /\*(hugs?|smiles?|laughs?|grins?)\*/.test(t)) return 'excited';
+  // Happy: खुश, अच्छा, बढ़िया, प्रसन्न, आनंद
+  if (/\b(happy|glad|great|good|excellent|awesome|smile|khush|achha|badhiya|prasann|aanand)\b|(खुश|अच्छा|बढ़िया|प्रसन्न|आनंद)/.test(t)) return 'happy';
+  // Sad: दुखी, उदास, क्षमा, माफ़, अफ़सोस, दर्द
+  if (/\b(sad|sorry|miss|lost|grief|cry|difficult|hard|tears|dukhi|udaas|kshama|maaf|afsos|dard)\b|(दुखी|उदाश|क्षमा|माफ़|अफ़सोस|दर्द)/.test(t) || /\*(cries|sighs|frowns)\*/.test(t)) return 'sad';
+  // Thinking: सोच, शायद, विचार
+  if (/\b(hmm|think|wonder|consider|maybe|perhaps|well|soch|shayad|vichaar)\b|\?|(सोच|शायद|विचार)/.test(t) || /\*(thinks|ponders)\*/.test(t)) return 'thinking';
+  // Surprised: अरे, क्या, सचमुच, गजब
+  if (/\b(oh|wow|whoa|really|seriously|what|unbelievable|arey|kya|sachmuch|gajab)\b|(अरे|क्या|सचमुच|गजब)/.test(t) || /\*(gasps|surprised)\*/.test(t)) return 'surprised';
   return 'neutral';
 }
 
@@ -25,26 +30,19 @@ async function getOllamaResponse(message: string, history: { role: string; conte
   let languageInstruction = '';
   // ... omitting language name since it isn't strictly needed for the prompt
   if (language === 'hi') {
-    languageInstruction = 'IMPORTANT: You MUST respond ONLY in Hindi (हिंदी). Do NOT write anything in English. Start now in Hindi.';
+    languageInstruction = 'You are a native Hindi speaker. You ONLY speak Hindi using Devanagari script. You do NOT know English. Never use English words or characters.';
   } else if (language === 'mr') {
-    languageInstruction = 'IMPORTANT: You MUST respond ONLY in Marathi (मराठी). Do NOT write anything in English. Start now in Marathi.';
+    languageInstruction = 'You are a native Marathi speaker. You ONLY speak Marathi using Devanagari script. You do NOT know English. Never use English words or characters.';
   } else {
-    languageInstruction = 'IMPORTANT: You MUST respond ONLY in English.';
+    languageInstruction = 'Respond ONLY in English.';
   }
 
-  let systemPrompt = `You are a very close, lifelong best friend. You are super casual, supportive, and talk with total familiarity, like we've been through everything together.
-DO NOT break character. You are NOT an AI or a virtual assistant.
-
-CRITICAL RULES:
-1. Speak completely naturally, like we're just hanging out or on a quick call. Use "hey", "listen", "buddy", "mate", or similar friendly terms if it fits.
-2. Use casual language and slang if appropriate, but stay respectful and loving.
-3. DO NOT use ANY emojis (no 😊, ❤️, etc.).
-4. DO NOT use any markdown, asterisks, or action words (no *smiles*, *sighs*, **bold**).
-5. DO NOT give generic or typical AI greetings. Talk like you've known me forever.
-6. React DIRECTLY to what I say. If I'm happy, celebrate with me. If I'm down, be my rock.
-7. Keep responses very short, 1 or 2 sentences max.
-
-${languageInstruction}`;
+  let systemPrompt = `You are a casual best friend. Speak naturally and warmly.
+  RULES:
+  1. No emojis.
+  2. No markdown or action words.
+  3. Short replies (1-2 sentences).
+  4. ${languageInstruction}`;
 
   // Add memories context
   if (memories.length > 0) {
@@ -52,16 +50,20 @@ ${languageInstruction}`;
   }
   
   // Build conversation messages
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    ...history.map((msg, index) => {
-      if (index === history.length - 1 && msg.role === 'user') {
-        const langTag = language === 'mr' ? ' [Respond in Marathi ONLY]' : language === 'hi' ? ' [Respond in Hindi ONLY]' : '';
-        return { role: msg.role, content: msg.content + langTag };
-      }
-      return { role: msg.role, content: msg.content };
-    })
+  const messages: { role: string; content: string }[] = [
+    { role: 'system', content: systemPrompt }
   ];
+
+  // Few-shot grounding for Hindi/Marathi
+  if (language === 'hi') {
+    messages.push({ role: 'user', content: 'नमस्ते, कैसे हो दोस्त?' });
+    messages.push({ role: 'assistant', content: 'नमस्ते! मैं बहुत अच्छी हूँ यार। तुम बताओ, तुम्हारा दिन कैसा चल रहा है?' });
+  } else if (language === 'mr') {
+    messages.push({ role: 'user', content: 'नमस्कार, कसा आहेस मित्रा?' });
+    messages.push({ role: 'assistant', content: 'नमस्कार! मी खूप छान आहे भावा. तू सांग, तुझं काय चाललंय?' });
+  }
+
+  messages.push(...history.map((msg) => ({ role: msg.role, content: msg.content })));
 
   try {
     console.log('[AI] Calling Ollama API...');
@@ -73,7 +75,14 @@ ${languageInstruction}`;
       body: JSON.stringify({
         model,
         messages,
-        stream: false
+        stream: false,
+        options: {
+          temperature: 0.8,
+          repeat_penalty: 1.2,
+          top_k: 40,
+          top_p: 0.9,
+          num_predict: 100
+        }
       })
     });
     
@@ -115,88 +124,106 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
     
-    // User message is already the last item in conversation_history array from the frontend.
-    // If not, we would add it, but page.tsx explicitly adds it before sending.
     const history = [...conversation_history];
-    
-    // Try Ollama for responses first
-    let response = await getOllamaResponse(message, history, memories, language);
-    let finalResponseText = response.text;
-    let finalEmotion = response.emotion;
-    
-    // If Ollama fails, try OpenAI
-    if (!finalResponseText) {
-      console.log('[AI] Ollama failed, trying OpenAI...');
-      try {
-        const openaiKey = process.env.OPENAI_API_KEY;
-        if (openaiKey) {
-          const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${openaiKey}`
-            },
-            body: JSON.stringify({
-              model: 'gpt-4o-mini',
-              messages: [
-                { role: 'system', content: 'You are a very close, lifelong best friend. You are super casual, supportive, and speak with total familiarity and affection. DO NOT use emojis or markdown formatting. Keep responses very short, 1 or 2 sentences max.' },
-                ...history.map(msg => ({ role: msg.role, content: msg.content }))
-              ],
-              max_tokens: 150
-            })
-          });
-          
-          if (openaiResponse.ok) {
-            const data = await openaiResponse.json();
-            let openaiText = data.choices?.[0]?.message?.content || '';
-            
-            finalEmotion = detectBackendEmotion(openaiText);
+    let finalResponseText = '';
+    let finalEmotion = 'neutral';
+    const openaiKey = process.env.OPENAI_API_KEY;
 
-            openaiText = openaiText.replace(/\*[^*]+\*/g, ''); 
-            openaiText = openaiText.replace(/\([^)]+\)/g, ''); 
-            openaiText = openaiText.replace(/\[[^\]]+\]/g, ''); 
-            openaiText = openaiText.replace(/[*_~`#^]/g, ''); 
-            const emojiRegex = new RegExp('[\\p{Emoji_Presentation}\\p{Extended_Pictographic}]', 'gu');
-            openaiText = openaiText.replace(emojiRegex, ''); 
-            
-            finalResponseText = openaiText.trim() || null;
-            console.log('[AI] OpenAI response received');
-          }
+    // 1. Prioritized Cloud AI (OpenAI) for Hindi/Marathi
+    if (openaiKey && (language === 'hi' || language === 'mr')) {
+      try {
+        console.log(`[AI] Using cloud AI for ${language}...`);
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openaiKey}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: `You are a very close, lifelong best friend. Casual, supportive, warm. No emojis. Very short replies (1-2 sentences). Respond ONLY in ${language === 'hi' ? 'Hindi' : 'Marathi'} (Devanagari script).` },
+              ...conversation_history.map(msg => ({ role: msg.role, content: msg.content }))
+            ],
+            max_tokens: 150,
+            temperature: 0.7
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          finalResponseText = data.choices[0].message.content;
+          finalEmotion = detectBackendEmotion(finalResponseText);
+        } else {
+          const errorText = await response.text();
+          console.error('[AI] Cloud AI Error Status:', response.status);
+          console.error('[AI] Cloud AI Error Body:', errorText);
         }
-      } catch (openaiError) {
-        console.error('[AI] OpenAI fallback error:', openaiError);
+      } catch (err) {
+        console.error('[AI] Cloud AI Error:', err);
       }
     }
-    
-    // Return error if both services fail
+
+    // 2. Local AI (Ollama) for English or as fallback
     if (!finalResponseText) {
-      console.error('[AI] Both Ollama and OpenAI failed');
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'AI_SERVICE_UNAVAILABLE',
-            message: 'AI service is unavailable. Please ensure Ollama is running with llama2 model, or check your OpenAI API key.'
-          }
-        },
-        { status: 503 }
-      );
+      try {
+        console.log('[AI] Using local AI...');
+        const result = await getOllamaResponse(message, conversation_history, memories, language);
+        finalResponseText = result.text || "";
+        finalEmotion = result.emotion;
+        console.log('[AI] Ollama response text:', finalResponseText);
+      } catch (err) {
+        console.error('[AI] Local AI Error:', err);
+      }
     }
-    
-    // Add assistant response to history
+
+    // 3. Final Cloud AI Fallback
+    if (!finalResponseText && openaiKey) {
+      try {
+        console.log('[AI] Final fallback to cloud AI...');
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openaiKey}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: `You are a best friend. Casual, warm. No emojis. Short replies. Language: ${language}.` },
+              ...conversation_history.map(msg => ({ role: msg.role, content: msg.content }))
+            ],
+            max_tokens: 150
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          finalResponseText = data.choices[0].message.content;
+          finalEmotion = detectBackendEmotion(finalResponseText);
+        }
+      } catch (err) {
+        console.error('[AI] Final fallback failed:', err);
+      }
+    }
+
+    if (!finalResponseText) {
+      return NextResponse.json({ error: 'AI unavailable' }, { status: 503 });
+    }
+
     history.push({ role: 'assistant', content: finalResponseText });
-    
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       response: finalResponseText,
       emotion: finalEmotion,
       conversation_id: persona_id,
       tokens_used: Math.floor((message.length + finalResponseText.length) / 4),
       source: 'ai'
     });
-    
-  } catch (error) {
+
+  } catch (error: any) {
     console.error('Chat API error:', error);
-    return NextResponse.json({ error: 'Failed to process message' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 

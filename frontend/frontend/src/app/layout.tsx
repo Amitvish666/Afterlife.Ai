@@ -3,7 +3,7 @@ import { Providers } from './providers';
 import '../styles/globals.css';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://mshfsfbgvinbotzcsyxb.supabase.co'),
+  metadataBase: new URL('https://hqtalsezrmvfjtlgjrhj.supabase.co'),
   title: {
     default: 'Beyond Life AI - Preserve Memories, Connect Forever',
     template: '%s | Beyond Life AI',

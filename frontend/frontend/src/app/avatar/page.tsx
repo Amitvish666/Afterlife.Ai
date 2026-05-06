@@ -40,6 +40,7 @@ const AvatarCanvas = dynamic(() => import('@/components/AvatarCanvas'), {
 const LANGUAGES = [
   { code: 'en', name: 'English',    flag: '🇺🇸' },
   { code: 'hi', name: 'Hindi',      flag: '🇮🇳' },
+  { code: 'mr', name: 'Marathi',    flag: '🇮🇳' },
   { code: 'es', name: 'Spanish',    flag: '🇪🇸' },
   { code: 'fr', name: 'French',     flag: '🇫🇷' },
   { code: 'de', name: 'German',     flag: '🇩🇪' },
@@ -63,11 +64,16 @@ const EMOTION_BUTTONS: { emotion: Emotion; label: string; icon: React.ReactNode;
 // ─── Detect emotion from text ─────────────────────────────────────────────────
 function detectEmotionFromText(text: string): Emotion {
   const t = text.toLowerCase();
-  if (/\b(wow|amazing|incredible|fantastic|wonderful|love|joy)\b|!{2,}/.test(t)) return 'excited';
-  if (/\b(happy|glad|great|good|excellent|awesome|smile)\b/.test(t))              return 'happy';
-  if (/\b(sad|sorry|miss|lost|grief|cry|difficult|hard)\b/.test(t))               return 'sad';
-  if (/\b(hmm|think|wonder|consider|maybe|perhaps|well)\b|\?/.test(t))            return 'thinking';
-  if (/\b(oh|wow|whoa|really|seriously|what|unbelievable)\b/.test(t))             return 'surprised';
+  // Excited: वाह, अद्भुत, कमाल, बेहतरीन, जबरदस्त, शानदार
+  if (/\b(wow|amazing|incredible|fantastic|wonderful|love|joy|wah|adbhut|kamaal|behtareen|zabardast|shaandaar)\b|!{2,}|(वाह|अद्भुत|कमाल|बेहतरीन|जबरदस्त|शानदार)/.test(t)) return 'excited';
+  // Happy: खुश, अच्छा, बढ़िया, प्रसन्न, आनंद
+  if (/\b(happy|glad|great|good|excellent|awesome|smile|khush|achha|badhiya|prasann|aanand)\b|(खुश|अच्छा|बढ़िया|प्रसन्न|आनंद)/.test(t))              return 'happy';
+  // Sad: दुखी, उदास, क्षमा, माफ़, अफ़सोस, दर्द
+  if (/\b(sad|sorry|miss|lost|grief|cry|difficult|hard|dukhi|udaas|kshama|maaf|afsos|dard)\b|(दुखी|उदाश|क्षमा|माफ़|अफ़सोस|दर्द)/.test(t))               return 'sad';
+  // Thinking: सोच, शायद, विचार
+  if (/\b(hmm|think|wonder|consider|maybe|perhaps|well|soch|shayad|vichaar)\b|\?|(सोच|शायद|विचार)/.test(t))            return 'thinking';
+  // Surprised: अरे, क्या, सचमुच, गजब
+  if (/\b(oh|wow|whoa|really|seriously|what|unbelievable|arey|kya|sachmuch|gajab)\b|(अरे|क्या|सचमुच|गजब)/.test(t))             return 'surprised';
   return 'neutral';
 }
 
@@ -133,7 +139,20 @@ function AvatarContent() {
     setCurrentEmotion(detectEmotionFromText(textToSpeak));
 
     const utterance = new SpeechSynthesisUtterance(textToSpeak);
-    utterance.lang = language + (language === 'zh' ? '-CN' : language === 'pt' ? '-BR' : '');
+    const langMap: Record<string, string> = {
+      'en': 'en-US',
+      'hi': 'hi-IN',
+      'mr': 'mr-IN',
+      'zh': 'zh-CN',
+      'pt': 'pt-BR',
+      'es': 'es-ES',
+      'fr': 'fr-FR',
+      'de': 'de-DE',
+      'ja': 'ja-JP',
+      'ko': 'ko-KR',
+      'ar': 'ar-SA'
+    };
+    utterance.lang = langMap[language] || language;
     utterance.rate = 1.0;
     utterance.pitch = 1.05; 
 
@@ -617,8 +636,27 @@ function AvatarContent() {
               <MessageCircle size={16} color="#a78bfa" />
               <span style={{ color: 'white', fontWeight: 600, fontSize: '14px' }}>Chat with AI</span>
               {isAIThinking && (
-                <span style={{ color: '#64748b', fontSize: '12px', marginLeft: 'auto' }}>Thinking...</span>
+                <span style={{ color: '#64748b', fontSize: '12px', marginLeft: '12px' }}>Thinking...</span>
               )}
+              <button
+                onClick={() => setChatHistory([])}
+                style={{
+                  marginLeft: 'auto',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '8px',
+                  padding: '4px 10px',
+                  color: '#94a3b8',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <X size={12} /> Clear Chat
+              </button>
             </div>
 
             {/* Messages */}

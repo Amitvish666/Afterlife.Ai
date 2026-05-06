@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Providers } from './providers';
 import '../styles/globals.css';
 
-export const metadataBase = 'https://mshfsfbgvinbotzcsyxb.supabase.co';
+export const metadataBase = 'https://hqtalsezrmvfjtlgjrhj.supabase.co';
 
 export const metadata: Metadata = {
   title: {

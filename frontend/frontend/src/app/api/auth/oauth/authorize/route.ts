@@ -14,6 +14,13 @@ const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || 'http://localhost
 export async function GET(request: NextRequest) {
   const provider = request.nextUrl.searchParams.get('provider');
   
+  console.log('--- OAuth Authorize Triggered ---');
+  console.log('Provider:', provider);
+  console.log('process.env.GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID);
+  console.log('Using GOOGLE_CLIENT_ID:', GOOGLE_CLIENT_ID);
+  console.log('Using GOOGLE_REDIRECT_URI:', GOOGLE_REDIRECT_URI);
+  console.log('---------------------------------');
+  
   if (provider === 'google') {
     const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     googleAuthUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
