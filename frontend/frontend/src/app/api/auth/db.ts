@@ -1,5 +1,8 @@
-// Shared in-memory storage for auth with localStorage persistence
-// In production, this would be replaced with a proper database
+// Server-side in-memory storage with file-based persistence
+// localStorage is not available in Next.js API routes (server-side)
+
+import fs from 'fs';
+import path from 'path';
 
 export interface User {
   id: string;
@@ -44,153 +47,147 @@ export interface ChatSession {
   updated_at: string;
 }
 
-const STORAGE_KEYS = {
-  users: 'beyondlife_users',
-  personas: 'beyondlife_personas',
-  tasks: 'beyondlife_tasks',
-  sessions: 'beyondlife_sessions',
-};
+export interface Memory {
+  id: string;
+  persona_id: string;
+  content: string;
+  type: string;
+  importance: number;
+  created_at: string;
+}
 
-// Helper functions for localStorage persistence
-function loadFromStorage<T>(key: string, defaultValue: T): T {
-  if (typeof window === 'undefined') return defaultValue;
-  try {
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : defaultValue;
-  } catch {
-    return defaultValue;
+// Use a writable data directory inside the project
+const DATA_DIR = path.join(process.cwd(), '.data');
+const DB_FILE = path.join(DATA_DIR, 'db.json');
+
+interface DbData {
+  users: Record<string, User>;
+  personas: Record<string, Persona>;
+  tasks: Record<string, Task>;
+  sessions: Record<string, ChatSession>;
+  memories: Record<string, Memory>;
+}
+
+function ensureDataDir() {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
   }
 }
 
-function saveToStorage<T>(key: string, value: T): void {
-  if (typeof window === 'undefined') return;
+function loadDb(): DbData {
+  ensureDataDir();
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    if (fs.existsSync(DB_FILE)) {
+      const raw = fs.readFileSync(DB_FILE, 'utf-8');
+      return JSON.parse(raw);
+    }
   } catch (e) {
-    console.error('Failed to save to localStorage:', e);
+    console.error('[DB] Failed to load db.json, starting fresh:', e);
+  }
+  return { users: {}, personas: {}, tasks: {}, sessions: {}, memories: {} };
+}
+
+function saveDb(data: DbData) {
+  ensureDataDir();
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('[DB] Failed to save db.json:', e);
   }
 }
 
-// Initialize storage with some demo data if empty
-function initializeStorage() {
-  if (typeof window === 'undefined') return;
-  
-  // Check if already initialized
-  if (localStorage.getItem('beyondlife_initialized')) return;
-  
-  // Create demo user
-  const demoUser: User = {
-    id: 'demo-user-1',
-    email: 'demo@example.com',
-    name: 'Demo User',
-    passwordHash: hashPassword('demo123'),
-    createdAt: new Date().toISOString(),
-  };
-  
-  const users = loadFromStorage<Record<string, User>>(STORAGE_KEYS.users, {});
-  users[demoUser.id] = demoUser;
-  saveToStorage(STORAGE_KEYS.users, users);
-  
-  // Mark as initialized
-  localStorage.setItem('beyondlife_initialized', 'true');
-}
+// Load once at module init (shared across hot-reloads via module cache)
+const _db: DbData = loadDb();
 
-// Initialize on load
-initializeStorage();
+export const usersDb: Record<string, User> = _db.users;
+export const personasDb: Record<string, Persona> = _db.personas;
+export const tasksDb: Record<string, Task> = _db.tasks;
+export const sessionsDb: Record<string, ChatSession> = _db.sessions;
+export const memoriesDb: Record<string, Memory> = _db.memories;
 
-// In-memory storage with localStorage backup
-export const usersDb: Record<string, User> = loadFromStorage(STORAGE_KEYS.users, {});
-export const personasDb: Record<string, Persona> = loadFromStorage(STORAGE_KEYS.personas, {});
-export const tasksDb: Record<string, Task> = loadFromStorage(STORAGE_KEYS.tasks, {});
-export const sessionsDb: Record<string, ChatSession> = loadFromStorage(STORAGE_KEYS.sessions, {});
-
-// Auto-save to localStorage whenever data changes
-function saveAll() {
-  saveToStorage(STORAGE_KEYS.users, usersDb);
-  saveToStorage(STORAGE_KEYS.personas, personasDb);
-  saveToStorage(STORAGE_KEYS.tasks, tasksDb);
-  saveToStorage(STORAGE_KEYS.sessions, sessionsDb);
-}
-
-// Export save function to be called after mutations
 export function persistData() {
-  saveAll();
+  saveDb({ users: usersDb, personas: personasDb, tasks: tasksDb, sessions: sessionsDb, memories: memoriesDb });
 }
 
-// Helper to add persona with persistence
+// Persona helpers
 export function addPersona(persona: Persona): Persona {
   personasDb[persona.id] = persona;
-  saveToStorage(STORAGE_KEYS.personas, personasDb);
+  persistData();
   return persona;
 }
 
-// Helper to delete persona with persistence
 export function deletePersona(personaId: string): boolean {
   if (!personasDb[personaId]) return false;
   delete personasDb[personaId];
-  
-  // Also delete associated tasks
   Object.keys(tasksDb).forEach(taskId => {
-    if (tasksDb[taskId].persona_id === personaId) {
-      delete tasksDb[taskId];
-    }
+    if (tasksDb[taskId].persona_id === personaId) delete tasksDb[taskId];
   });
-  
-  saveToStorage(STORAGE_KEYS.personas, personasDb);
-  saveToStorage(STORAGE_KEYS.tasks, tasksDb);
+  persistData();
   return true;
 }
 
-// Helper to add task with persistence
+// Task helpers
 export function addTask(task: Task): Task {
   tasksDb[task.id] = task;
-  saveToStorage(STORAGE_KEYS.tasks, tasksDb);
+  persistData();
   return task;
 }
 
-// Helper to update task with persistence
 export function updateTask(taskId: string, updates: Partial<Task>): Task | null {
   if (!tasksDb[taskId]) return null;
   tasksDb[taskId] = { ...tasksDb[taskId], ...updates, updated_at: new Date().toISOString() };
-  saveToStorage(STORAGE_KEYS.tasks, tasksDb);
+  persistData();
   return tasksDb[taskId];
 }
 
-// Helper to delete task with persistence
 export function deleteTask(taskId: string): boolean {
   if (!tasksDb[taskId]) return false;
   delete tasksDb[taskId];
-  saveToStorage(STORAGE_KEYS.tasks, tasksDb);
+  persistData();
   return true;
 }
 
-// Helper to get tasks for a persona
 export function getTasksForPersona(personaId: string): Task[] {
-  return Object.values(tasksDb).filter(task => task.persona_id === personaId);
+  return Object.values(tasksDb).filter(t => t.persona_id === personaId);
 }
 
-// Helper to add session with persistence
+// Session helpers
 export function addSession(session: ChatSession): ChatSession {
   sessionsDb[session.id] = session;
-  saveToStorage(STORAGE_KEYS.sessions, sessionsDb);
+  persistData();
   return session;
 }
 
-// Helper to delete session with persistence
 export function deleteSession(sessionId: string): boolean {
   if (!sessionsDb[sessionId]) return false;
   delete sessionsDb[sessionId];
-  saveToStorage(STORAGE_KEYS.sessions, sessionsDb);
+  persistData();
   return true;
 }
 
-// Helper to get sessions for a persona
 export function getSessionsForPersona(personaId: string): ChatSession[] {
-  return Object.values(sessionsDb).filter(session => session.persona_id === personaId);
+  return Object.values(sessionsDb).filter(s => s.persona_id === personaId);
+}
+
+// Memory helpers
+export function addMemory(memory: Memory): Memory {
+  memoriesDb[memory.id] = memory;
+  persistData();
+  return memory;
+}
+
+export function deleteMemory(memoryId: string): boolean {
+  if (!memoriesDb[memoryId]) return false;
+  delete memoriesDb[memoryId];
+  persistData();
+  return true;
+}
+
+export function getMemoriesForPersona(personaId: string): Memory[] {
+  return Object.values(memoriesDb).filter(m => m.persona_id === personaId);
 }
 
 export function hashPassword(password: string): string {
-  // Simple hash for testing
   let hash = 0;
   for (let i = 0; i < password.length; i++) {
     const char = password.charCodeAt(i);

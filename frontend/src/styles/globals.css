@@ -326,3 +326,38 @@
 .animate-talk {
   animation: talk 0.3s ease-in-out infinite;
 }
+
+/* Premium Ultra-Glow styles */
+.glow-card {
+  @apply bg-surface-950/75 backdrop-blur-2xl border border-surface-800/80 rounded-2xl shadow-[0_0_50px_-12px_rgba(139,92,246,0.15)] hover:shadow-[0_0_50px_0_rgba(139,92,246,0.3)] transition-all duration-500 hover:border-beyond-purple/40;
+}
+
+.neon-border-glow {
+  @apply relative overflow-hidden rounded-2xl border border-surface-800 bg-surface-950/60 backdrop-blur-xl transition-all duration-500 hover:border-beyond-purple/40 hover:shadow-[0_0_30px_rgba(139,92,246,0.22)];
+}
+
+.text-glow {
+  text-shadow: 0 0 20px rgba(139, 92, 246, 0.45), 0 0 40px rgba(139, 92, 246, 0.2);
+}
+
+.sweep-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.sweep-glow::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.22), transparent);
+  transform: skewX(-25deg);
+  transition: 0.75s;
+}
+
+.sweep-glow:hover::after {
+  left: 150%;
+}
+

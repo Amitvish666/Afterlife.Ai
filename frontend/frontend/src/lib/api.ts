@@ -177,7 +177,15 @@ export const apiClient = {
   deleteSession: (personaId: string, sessionId: string) =>
     api.delete<ApiResponse<unknown>>(`/personas/${personaId}/sessions/${sessionId}`),
   
-  sendMessage: (personaId: string, sessionId: string, data: { message: string; enable_voice?: boolean; enable_avatar?: boolean }) =>
+  sendMessage: (personaId: string, sessionId: string, data: { 
+    message: string; 
+    conversation_history?: any[];
+    language?: string;
+    persona?: any;
+    memories?: any[];
+    enable_voice?: boolean; 
+    enable_avatar?: boolean 
+  }) =>
     api.post<ApiResponse<unknown>>(`/personas/${personaId}/sessions/${sessionId}/messages`, data),
   
   // Jobs

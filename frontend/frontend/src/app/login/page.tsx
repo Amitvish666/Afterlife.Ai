@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Sparkles, ArrowRight, Loader2 } from 'lucide-react';
@@ -19,6 +19,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(true); // Default to true for persistence
+  const processedOAuth = useRef(false);
 
   // Check for existing session on mount and auto-login
   useEffect(() => {
@@ -82,10 +83,18 @@ export default function LoginPage() {
   // Check for OAuth success on mount
   useEffect(() => {
     const checkOAuthStatus = async () => {
+      // If we already processed this or are already logged in, skip
+      if (processedOAuth.current || isAuthenticated) return;
+
+      const searchParams = new URLSearchParams(window.location.search);
+      const isOAuthSuccess = searchParams.get('oauth_success') === 'true';
+      
+      if (!isOAuthSuccess && !document.cookie.includes('access_token')) return;
+
       // Check for OAuth cookies
       const cookies = document.cookie.split(';').reduce((acc, cookie) => {
         const [key, value] = cookie.trim().split('=');
-        acc[key] = value;
+        if (key && value) acc[key] = value;
         return acc;
       }, {} as Record<string, string>);
       
@@ -96,6 +105,9 @@ export default function LoginPage() {
       const refreshToken = cookies['refresh_token'];
       
       if (token && userEmail) {
+        processedOAuth.current = true;
+        console.log('OAuth tokens found in cookies. Capturing...');
+        
         // Get rememberMe preference from localStorage (default to true for OAuth)
         const storedRememberMe = localStorage.getItem('remember_me');
         const shouldPersist = storedRememberMe === null ? true : storedRememberMe === 'true';
@@ -104,6 +116,7 @@ export default function LoginPage() {
         if (shouldPersist) {
           localStorage.setItem('access_token', token);
           if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
+          localStorage.setItem('remember_me', 'true');
         } else {
           sessionStorage.setItem('access_token', token);
           if (refreshToken) sessionStorage.setItem('refresh_token', refreshToken);
@@ -112,20 +125,51 @@ export default function LoginPage() {
         // Create user from OAuth data
         const fullUser = {
           id: userId,
-          name: userName || userEmail?.split('@')[0] || 'User',
-          email: userEmail,
+          name: decodeURIComponent(userName || userEmail?.split('@')[0] || 'User'),
+          email: decodeURIComponent(userEmail),
           created_at: new Date().toISOString(),
           consent_given: false,
           retention_period: 365,
         };
+        
+        console.log('Setting user and clearing cookies:', fullUser);
+        
+        // Clear OAuth cookies with path=/
+        document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; path=/;';
+        document.cookie = 'refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; path=/;';
+        document.cookie = 'oauth_user_id=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; path=/;';
+        document.cookie = 'oauth_user_name=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; path=/;';
+        document.cookie = 'oauth_user_email=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; path=/;';
+        
         setUser(fullUser);
-        toast.success('Welcome! Signed in with OAuth');
-        router.replace('/dashboard');
+        toast.success('Welcome! Signed in with Google');
+        
+        // Force a small delay to ensure store update before redirect
+        setTimeout(() => {
+          console.log('Redirecting to dashboard...');
+          router.replace('/dashboard');
+        }, 100);
+      } else if (isOAuthSuccess && !processedOAuth.current) {
+        // Only show error if we haven't already successfully processed it in this lifecycle
+        console.warn('OAuth success param present but cookies missing or incomplete:', {
+          hasToken: !!token,
+          hasEmail: !!userEmail,
+          cookiesFound: Object.keys(cookies)
+        });
+        
+        // Double check if we already have a token in local storage (maybe first useEffect already got it)
+        if (localStorage.getItem('access_token') || sessionStorage.getItem('access_token')) {
+          console.log('Token already in storage, likely handled by existing session check.');
+          router.replace('/dashboard');
+          return;
+        }
+
+        toast.error('Authentication successful, but session could not be established. Please try again.');
       }
     };
     
     checkOAuthStatus();
-  }, []);
+  }, [router, setUser, isAuthenticated]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

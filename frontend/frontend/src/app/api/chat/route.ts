@@ -143,7 +143,7 @@ export async function POST(request: Request) {
             model: 'gpt-4o-mini',
             messages: [
               { role: 'system', content: `You are a very close, lifelong best friend. Casual, supportive, warm. No emojis. Very short replies (1-2 sentences). Respond ONLY in ${language === 'hi' ? 'Hindi' : 'Marathi'} (Devanagari script).` },
-              ...conversation_history.map(msg => ({ role: msg.role, content: msg.content }))
+              ...conversation_history.map((msg: { role: string; content: string }) => ({ role: msg.role, content: msg.content }))
             ],
             max_tokens: 150,
             temperature: 0.7
@@ -191,7 +191,7 @@ export async function POST(request: Request) {
             model: 'gpt-4o-mini',
             messages: [
               { role: 'system', content: `You are a best friend. Casual, warm. No emojis. Short replies. Language: ${language}.` },
-              ...conversation_history.map(msg => ({ role: msg.role, content: msg.content }))
+              ...conversation_history.map((msg: { role: string; content: string }) => ({ role: msg.role, content: msg.content }))
             ],
             max_tokens: 150
           })

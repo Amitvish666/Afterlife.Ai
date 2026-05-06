@@ -36,6 +36,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { apiClient } from '@/lib/api';
+import Navbar from '@/components/Navbar';
+import Sidebar from '@/components/Sidebar';
 import { useAuthStore, usePersonaStore } from '@/store';
 import { cn } from '@/lib/utils';
 
@@ -75,6 +77,7 @@ export default function ChatsPage() {
   const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(searchParams.get('persona_id'));
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [memories, setMemories] = useState<any[]>([]);
   const [showSessions, setShowSessions] = useState(true);
   const [showJobs, setShowJobs] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -128,12 +131,25 @@ export default function ChatsPage() {
     }
   }, [personas, selectedPersonaId, setCurrentPersona]);
 
-  // Load sessions when persona changes
+  // Load sessions and memories when persona changes
   useEffect(() => {
     if (selectedPersonaId) {
       loadSessions(selectedPersonaId);
+      loadMemories(selectedPersonaId);
     }
   }, [selectedPersonaId]);
+
+  const loadMemories = async (personaId: string) => {
+    try {
+      const response = await apiClient.listMemories(personaId);
+      if (response.data.data) {
+        setMemories(response.data.data as any[]);
+      }
+    } catch (error) {
+      console.error('Failed to load memories:', error);
+      setMemories([]);
+    }
+  };
 
   // Reset voice and clear chat when language changes
   useEffect(() => {
@@ -469,47 +485,39 @@ export default function ChatsPage() {
     setIsLoading(true);
 
     try {
-      // Use frontend API directly since backend requires Python
-      const response = await fetch(`/api/personas/${selectedPersonaId}/sessions/new/messages`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        },
-        body: JSON.stringify({
-          message: input.trim(),
-          conversation_history: messages,
-          language,
-          persona: selectedPersona,
-          memories: []
-        }),
+      const response = await apiClient.sendMessage(selectedPersonaId, selectedSessionId || 'new', {
+        message: input.trim(),
+        conversation_history: messages,
+        language,
+        persona: selectedPersona,
+        memories: memories
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        const assistantMessage: Message = {
-          role: 'assistant',
-          content: data.response || data.content,
-          timestamp: new Date()
-        };
-        setMessages(prev => [...prev, assistantMessage]);
-        
-        // Auto-speak the response
-        setTimeout(() => speakText(data.response || data.content), 500);
-      } else {
-        // API returned error - show error message to user
-        try {
-          const errorData = await response.json();
-          console.error('Chat API error:', errorData);
-          alert(errorData?.error?.message || 'AI service unavailable. Please check your API keys.');
-        } catch (e) {
-          // If response is not JSON
-          console.error('Chat API error: Failed to parse error response');
-          alert('AI service unavailable. Please check your API keys.');
-        }
+      const data = response.data as any;
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: data.response || data.content,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+      
+      // Auto-speak the response
+      setTimeout(() => speakText(data.response || data.content), 500);
+      
+      // Update session ID if a new session was created
+      if (data.conversation_id && !selectedSessionId) {
+        setSelectedSessionId(data.conversation_id);
+        loadSessions(selectedPersonaId);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send message:', error);
+      let errorMsg = 'AI service unavailable. Please check your connection.';
+      if (error.response?.status === 503) {
+        errorMsg = 'AI service (Ollama) is currently unavailable or starting up. Please ensure Ollama is running and the model is pulled.';
+      } else if (error.response?.data?.error?.message) {
+        errorMsg = error.response.data.error.message;
+      }
+      toast.error(errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -525,13 +533,8 @@ export default function ChatsPage() {
   const selectedPersona = personas.find(p => p.id === selectedPersonaId);
   const personaTasks = tasks.filter(t => t.persona_id === selectedPersonaId);
 
-  // Responsive sidebar class
-  const getSidebarClass = () => {
-    if (mobileMenuOpen) {
-      return 'fixed left-0 top-0 h-full w-72 bg-surface-900/50 backdrop-blur-xl border-r border-surface-800/50 p-4 flex flex-col z-50';
-    }
-    return 'fixed left-0 top-0 h-full w-72 bg-surface-900/50 backdrop-blur-xl border-r border-surface-800/50 p-4 flex flex-col z-50 -translate-x-full lg:translate-x-0 transition-transform duration-300';
-  };
+  // Mobile menu toggle
+  const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
 
   if (!isAuthenticated) {
     return (
@@ -546,553 +549,455 @@ export default function ChatsPage() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-surface-950 flex">
-      {/* Sidebar - Hidden on mobile, toggleable */}
-      <aside className={getSidebarClass()}>
-        <div className="flex items-center justify-between mb-6 px-2">
-          <button onClick={() => router.push('/dashboard')} className="flex items-center space-x-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-beyond-purple to-beyond-pink flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-xl font-bold gradient-text">Beyond Life AI</span>
-          </button>
-          <button 
-            onClick={() => setMobileMenuOpen(false)}
-            className="lg:hidden p-2 rounded-lg hover:bg-surface-800 text-surface-400"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <nav className="space-y-2 mb-4">
-          <button 
-            onClick={() => router.push('/dashboard')}
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-surface-400 hover:text-white hover:bg-surface-800/50 transition-colors"
-          >
-            <Users className="w-5 h-5" />
-            <span>Personas</span>
-          </button>
-          <button 
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl bg-beyond-purple/20 text-white"
-          >
-            <MessageCircle className="w-5 h-5" />
-            <span>Chats</span>
-          </button>
-          <button 
-            onClick={() => router.push('/dashboard/settings')}
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-surface-400 hover:text-white hover:bg-surface-800/50 transition-colors"
-          >
-            <SettingsIcon className="w-5 h-5" />
-            <span>Settings</span>
-          </button>
-        </nav>
-
-        {/* User Tab - Collapsible */}
-        <div className="mt-auto pt-4 border-t border-surface-800/50">
-          <button 
-            onClick={() => setShowUserMenu(!showUserMenu)}
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-surface-400 hover:text-white hover:bg-surface-800/50 transition-colors"
-          >
-            <UserIcon className="w-5 h-5" />
-            <span>User</span>
-            <ChevronDown className={'w-4 h-4 ml-auto transition-transform ' + (showUserMenu ? 'rotate-180' : '')} />
-          </button>
-          
-          <AnimatePresence>
-            {showUserMenu && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="space-y-2 mt-2 overflow-hidden"
-              >
-                {/* User Info */}
-                <div className="flex items-center space-x-3 px-4 py-3 rounded-xl bg-surface-800/50">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-beyond-purple to-beyond-pink flex items-center justify-center">
-                    <span className="text-white font-semibold">
-                      {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium truncate">{user?.name || 'User'}</p>
-                    <p className="text-surface-400 text-sm truncate">{user?.email}</p>
-                  </div>
-                </div>
-                
-                {/* Menu Options */}
-                <button 
-                  onClick={() => router.push('/dashboard/settings')}
-                  className="w-full flex items-center space-x-3 px-4 py-2 rounded-lg text-surface-400 hover:text-white hover:bg-surface-800/30 transition-colors"
-                >
-                  <Shield className="w-4 h-4" />
-                  <span>Privacy Policy</span>
-                </button>
-                <button 
-                  className="w-full flex items-center space-x-3 px-4 py-2 rounded-lg text-surface-400 hover:text-white hover:bg-surface-800/30 transition-colors"
-                >
-                  <File className="w-4 h-4" />
-                  <span>Terms of Service</span>
-                </button>
-                <button 
-                  className="w-full flex items-center space-x-3 px-4 py-2 rounded-lg text-surface-400 hover:text-white hover:bg-surface-800/30 transition-colors"
-                >
-                  <HelpCircle className="w-4 h-4" />
-                  <span>Help & Support</span>
-                </button>
-                <button 
-                  className="w-full flex items-center space-x-3 px-4 py-2 rounded-lg text-surface-400 hover:text-white hover:bg-surface-800/30 transition-colors"
-                >
-                  <Bell className="w-4 h-4" />
-                  <span>Notifications</span>
-                </button>
-                <button 
-                  onClick={handleLogout}
-                  className="w-full flex items-center space-x-3 px-4 py-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Sign Out</span>
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Personas Section */}
-        <div className="flex-1 overflow-y-auto">
-          {personas.length > 0 && (
-            <div className="mb-4">
-              <button
-                onClick={() => setShowSessions(!showSessions)}
-                className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-surface-400 uppercase tracking-wider hover:text-white transition-colors"
-              >
-                <span>Your Personas</span>
-                {showSessions ? (
-                  <ChevronDown className="w-4 h-4" />
-                ) : (
-                  <ChevronRight className="w-4 h-4" />
-                )}
-              </button>
-              
-              <AnimatePresence>
-                {showSessions && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="space-y-2 mt-2"
-                  >
-                    {personas.map((persona) => (
-                      <div key={persona.id}>
-                        <button
-                          onClick={() => handleSelectPersona(persona.id)}
-                          className={cn(
-                            'w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors group',
-                            selectedPersonaId === persona.id
-                              ? 'bg-beyond-purple/20 text-white'
-                              : 'text-surface-400 hover:text-white hover:bg-surface-800/50'
-                          )}
-                        >
-                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-beyond-purple/20 to-beyond-pink/20 flex items-center justify-center flex-shrink-0">
-                            {persona.avatar_url ? (
-                              <img src={persona.avatar_url} alt={persona.title} className="w-7 h-7 rounded-lg object-cover" />
-                            ) : (
-                              <User className="w-4 h-4 text-beyond-purple" />
-                            )}
-                          </div>
-                          <div className="flex-1 text-left">
-                            <span className="truncate block">{persona.title}</span>
-                          </div>
-                          <span
-                            role="button"
-                            onClick={(e) => handleDeletePersona(persona.id, e)}
-                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/20 text-surface-400 hover:text-red-400 transition-all cursor-pointer"
-                            title="Delete persona"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </span>
-                        </button>
-                        
-                        {/* Sessions for this persona */}
-                        {selectedPersonaId === persona.id && (
-                          <div className="ml-4 pl-4 border-l border-surface-700/50 mt-1 space-y-1">
-                            <button
-                              onClick={handleCreateSession}
-                              className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-surface-400 hover:text-white hover:bg-surface-800/30 rounded-lg transition-colors"
-                            >
-                              <Plus className="w-4 h-4" />
-                              <span>New Chat</span>
-                            </button>
-                            
-                            {sessions.map((session) => (
-                              <button
-                                key={session.id}
-                                onClick={() => handleSelectSession(session.id)}
-                                className={cn(
-                                  'w-full flex items-center space-x-2 px-4 py-2 text-sm rounded-lg transition-colors group',
-                                  selectedSessionId === session.id
-                                    ? 'bg-beyond-purple/10 text-white'
-                                    : 'text-surface-400 hover:text-white hover:bg-surface-800/30'
-                                )}
-                              >
-                                <Folder className="w-4 h-4 flex-shrink-0" />
-                                <span className="truncate flex-1 text-left">{session.title}</span>
-                                <span
-                                  role="button"
-                                  onClick={(e) => handleDeleteSession(session.id, e)}
-                                  className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-surface-400 hover:text-red-400 transition-all cursor-pointer"
-                                  title="Delete session"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </span>
-                              </button>
-                            ))}
-                            
-                            {sessions.length === 0 && (
-                              <p className="px-4 py-2 text-xs text-surface-500">No chat sessions yet</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
-
-          {/* Tasks Section */}
-          {selectedPersonaId && personaTasks.length > 0 && (
-            <div>
-              <button
-                onClick={() => setShowJobs(!showJobs)}
-                className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-surface-400 uppercase tracking-wider hover:text-white transition-colors"
-              >
-                <span>Tasks</span>
-                {showJobs ? (
-                  <ChevronDown className="w-4 h-4" />
-                ) : (
-                  <ChevronRight className="w-4 h-4" />
-                )}
-              </button>
-              
-              <AnimatePresence>
-                {showJobs && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="space-y-2 mt-2"
-                  >
-                    {personaTasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className="px-4 py-2 rounded-lg bg-surface-800/30"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <Clock className="w-4 h-4 text-beyond-purple" />
-                          <span className="text-sm text-white capitalize">{task.type}</span>
-                        </div>
-                        <div className="mt-1 flex items-center space-x-2">
-                          <div className="flex-1 h-1 bg-surface-700 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-beyond-purple transition-all duration-300"
-                              style={{ width: task.progress + '%' }}
-                            />
-                          </div>
-                          <span className="text-xs text-surface-400">{Math.round(task.progress)}%</span>
-                        </div>
-                      </div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+  const renderSecondarySidebar = (isMobile = false) => (
+    <div className={cn(
+      "flex flex-col h-full",
+      isMobile ? "p-6" : ""
+    )}>
+      <div className="p-6 border-b border-white/5">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xs font-black text-surface-500 uppercase tracking-[0.3em] px-2">
+            Neural Sessions
+          </h2>
+          {isMobile && (
+            <button onClick={() => setMobileMenuOpen(false)} className="p-2 text-surface-400 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
           )}
         </div>
-      </aside>
-
-      {/* Mobile Overlay */}
-      {mobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
-
-      {/* Chat Area */}
-      <main className="flex-1 flex flex-col h-screen lg:ml-72">
-        {/* Mobile Header */}
-        <header className="lg:hidden h-16 border-b border-surface-800/50 flex items-center px-4 bg-surface-900/30">
-          <button
-            onClick={() => setMobileMenuOpen(true)}
-            className="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors mr-4"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-        </header>
         
-        {selectedPersona ? (
-          <>
-            {/* Desktop Chat Header */}
-            <header className="hidden lg:flex h-16 border-b border-surface-800/50 flex items-center px-6 bg-surface-900/30">
-              <button
-                onClick={() => router.push('/dashboard')}
-                className="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors mr-4"
-                title="Back to Personas"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-beyond-purple/20 to-beyond-pink/20 flex items-center justify-center">
-                  {selectedPersona.avatar_url ? (
-                    <img src={selectedPersona.avatar_url} alt={selectedPersona.title} className="w-9 h-9 rounded-xl object-cover" />
-                  ) : (
-                    <User className="w-5 h-5 text-beyond-purple" />
-                  )}
-                </div>
-                <div>
-                  <h1 className="text-lg font-semibold text-white">{selectedPersona.title}</h1>
-                  <p className="text-surface-400 text-sm">{selectedPersona.description || 'Your digital companion'}</p>
-                </div>
-              </div>
-              <div className="ml-auto flex items-center space-x-2">
-                <button
-                  onClick={() => router.push('/avatar?persona=' + selectedPersona.id)}
-                  className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-gradient-to-r from-beyond-purple to-beyond-pink text-white hover:opacity-90 transition-opacity"
-                  title="AI Avatar"
-                >
-                  <Video className="w-5 h-5" />
-                  <span className="hidden md:inline">AI Avatar</span>
-                </button>
-                <button
-                  onClick={() => router.push('/dashboard/chats?persona=' + selectedPersona.id)}
-                  className="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors"
-                  title="Open persona details"
-                >
-                  <Play className="w-5 h-5" />
-                </button>
-              </div>
-            </header>
+        <button
+          onClick={() => {
+            handleCreateSession();
+            if (isMobile) setMobileMenuOpen(false);
+          }}
+          disabled={!selectedPersonaId}
+          className="w-full flex items-center justify-center space-x-2 px-4 py-4 rounded-2xl bg-beyond-purple text-white font-black text-xs tracking-widest hover:shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+        >
+          <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
+          <span>INITIALIZE CHAT</span>
+        </button>
+      </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4">
-              {messages.length === 0 ? (
-                <div className="h-full flex items-center justify-center">
-                  <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-center max-w-md"
-                  >
-                    <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-beyond-purple/20 to-beyond-pink/20 flex items-center justify-center">
-                      <MessageCircle className="w-10 h-10 text-beyond-purple" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-white mb-4">Start a Conversation</h2>
-                    <p className="text-surface-400">
-                      Say hello to {selectedPersona.title} and start sharing your thoughts and feelings.
-                    </p>
-                  </motion.div>
-                </div>
-              ) : (
-                <>
-                  {messages.map((message, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={cn(
-                        'flex items-start space-x-3',
-                        message.role === 'user' && 'flex-row-reverse space-x-reverse'
-                      )}
-                    >
-                      <div className={cn(
-                        'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
-                        message.role === 'assistant' 
-                          ? 'bg-gradient-to-br from-beyond-purple to-beyond-pink' 
-                          : 'bg-surface-700'
-                      )}>
-                        {message.role === 'assistant' ? (
-                          <Sparkles className="w-4 h-4 text-white" />
-                        ) : (
-                          <User className="w-4 h-4 text-white" />
-                        )}
-                      </div>
-                      <div className={cn(
-                        'max-w-[70%] rounded-2xl px-4 py-3 relative group',
-                        message.role === 'assistant'
-                          ? 'bg-surface-800 text-white'
-                          : 'bg-beyond-purple text-white'
-                      )}>
-                        <p className="whitespace-pre-wrap">{message.content}</p>
-                        {message.role === 'assistant' && (
-                          <button
-                            onClick={() => speakText(message.content)}
-                            className="absolute -bottom-2 -right-2 w-8 h-8 bg-beyond-purple rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                            title="Speak message"
-                          >
-                            {isSpeaking ? (
-                              <Volume2 className="w-4 h-4 text-white" />
-                            ) : (
-                              <Volume2 className="w-4 h-4 text-white" />
-                            )}
-                          </button>
-                        )}
-                        <p className="text-xs mt-1 opacity-60">
-                          {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                    </motion.div>
-                  ))}
-                  
-                  {isLoading && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex items-center space-x-3"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-beyond-purple to-beyond-pink flex items-center justify-center">
-                        <Sparkles className="w-4 h-4 text-white" />
-                      </div>
-                      <div className="bg-surface-800 rounded-2xl px-4 py-3 flex items-center space-x-2">
-                        <Loader2 className="w-4 h-4 text-beyond-purple animate-spin" />
-                        <span className="text-surface-400 text-sm">Typing...</span>
-                      </div>
-                    </motion.div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-8 scrollbar-hide">
+        {/* Personas Quick Select */}
+        <div>
+          <p className="text-[10px] font-black text-surface-600 uppercase tracking-widest mb-4 px-2">Personas</p>
+          <div className="space-y-1">
+            {personas.map((persona) => (
+              <button
+                key={persona.id}
+                onClick={() => {
+                  handleSelectPersona(persona.id);
+                  if (isMobile) setMobileMenuOpen(false);
+                }}
+                className={cn(
+                  "w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all group",
+                  selectedPersonaId === persona.id 
+                    ? "bg-white/10 text-white" 
+                    : "text-surface-500 hover:text-white hover:bg-white/5"
+                )}
+              >
+                <div className="w-8 h-8 rounded-lg bg-surface-900 border border-white/5 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {persona.avatar_url ? (
+                    <img src={persona.avatar_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <UserIcon className="w-4 h-4" />
                   )}
-                  
-                  <div ref={messagesEndRef} />
-                </>
+                </div>
+                <span className="truncate text-xs font-bold tracking-wide text-left flex-1">{persona.title}</span>
+                {selectedPersonaId === persona.id && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-beyond-purple shadow-[0_0_8px_#8b5cf6]" />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Active Sessions */}
+        {selectedPersonaId && (
+          <div>
+            <p className="text-[10px] font-black text-surface-600 uppercase tracking-widest mb-4 px-2">Memory Fragments</p>
+            <div className="space-y-1">
+              {sessions.map((session) => (
+                <button
+                  key={session.id}
+                  onClick={() => {
+                    handleSelectSession(session.id);
+                    if (isMobile) setMobileMenuOpen(false);
+                  }}
+                  className={cn(
+                    "w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all group relative overflow-hidden",
+                    selectedSessionId === session.id 
+                      ? "bg-beyond-purple/10 text-beyond-purple border border-beyond-purple/20" 
+                      : "text-surface-500 hover:text-white hover:bg-white/5"
+                  )}
+                >
+                  <Folder className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate text-xs font-bold tracking-wide text-left flex-1">{session.title}</span>
+                  <Trash2 
+                    className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all"
+                    onClick={(e) => handleDeleteSession(session.id, e)}
+                  />
+                </button>
+              ))}
+              {sessions.length === 0 && (
+                <div className="px-4 py-8 text-center">
+                  <p className="text-[10px] font-bold text-surface-700 uppercase tracking-widest">No Active Sessions</p>
+                </div>
               )}
             </div>
+          </div>
+        )}
 
-            {/* Input Area */}
-            <div className="p-4 border-t border-surface-800/50 bg-surface-900/30">
-              <div className="max-w-4xl mx-auto">
-                {/* Bottom Area with Voice Tab and Input */}
-                <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
-                  {/* Voice Tab on Left */}
-                  <div className="flex">
-                    <button
-                      onClick={() => setShowVoiceTab(!showVoiceTab)}
-                      className="w-10 h-auto lg:h-[42px] px-2 bg-gradient-to-br from-beyond-purple to-beyond-pink rounded-l-xl flex items-center justify-center text-white transition-all hover:from-beyond-purple/80 hover:to-beyond-pink/80"
-                    >
-                      <Mic className="w-5 h-5" />
-                    </button>
-                    {showVoiceTab && (
-                      <div className="hidden lg:block w-40 p-2 bg-gradient-to-br from-surface-800/80 to-surface-900/80 rounded-r-xl border border-white/10 border-l-0 -ml-[1px]">
-                        <div className="space-y-2">
-                          <div>
-                            <label className="text-[10px] text-surface-400 block mb-0.5">Speed: {speechRate.toFixed(2)}</label>
-                            <input
-                              type="range"
-                              min="0.5"
-                              max="2"
-                              step="0.1"
-                              value={speechRate}
-                              onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
-                              className="w-full accent-beyond-purple h-1"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] text-surface-400 block mb-0.5">Pitch: {speechPitch.toFixed(2)}</label>
-                            <input
-                              type="range"
-                              min="0.5"
-                              max="2"
-                              step="0.1"
-                              value={speechPitch}
-                              onChange={(e) => setSpeechPitch(parseFloat(e.target.value))}
-                              className="w-full accent-beyond-purple h-1"
-                            />
-                          </div>
-                          
-                          {/* Language Selector */}
-                          <div>
-                            <label className="text-[10px] text-surface-400 block mb-0.5">Language</label>
-                            <select
-                              value={language}
-                              onChange={(e) => setLanguage(e.target.value as 'en' | 'hi' | 'mr')}
-                              className="w-full bg-surface-700/50 text-white text-[10px] rounded px-1.5 py-1 border border-white/10"
-                            >
-                              <option value="en">English</option>
-                              <option value="hi">हिन्दी (Hindi)</option>
-                              <option value="mr">मराठी (Marathi)</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+        {/* Active Tasks */}
+        {selectedPersonaId && personaTasks.length > 0 && (
+          <div>
+            <p className="text-[10px] font-black text-surface-600 uppercase tracking-widest mb-4 px-2">Processing</p>
+            <div className="space-y-3 px-2">
+              {personaTasks.map((task) => (
+                <div key={task.id} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-black text-surface-500 uppercase tracking-tighter">{task.type}</span>
+                    <span className="text-[9px] font-black text-beyond-purple">{task.progress}%</span>
                   </div>
+                  <div className="h-1 w-full bg-surface-900 rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${task.progress}%` }}
+                      className="h-full bg-beyond-purple"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Persona Meta */}
+      {selectedPersona && (
+        <div className="p-6 mt-auto bg-surface-900/20 border-t border-white/5">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-beyond-purple/20 flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-beyond-purple animate-pulse" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-white uppercase tracking-widest">Neural Link</p>
+              <p className="text-[9px] text-emerald-500 font-bold uppercase">Stable Connection</p>
+            </div>
+          </div>
+          <p className="text-[10px] text-surface-500 font-medium leading-relaxed italic">
+            {selectedPersona.description?.slice(0, 80)}...
+          </p>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-surface-950 flex flex-col overflow-hidden">
+      <Navbar />
+      <div className="flex flex-1 pt-16 h-full overflow-hidden">
+        <Sidebar />
+        
+        <div className="flex-1 flex overflow-hidden lg:pl-24">
+          {/* Mobile Sidebar Overlay */}
+          <AnimatePresence>
+            {mobileMenuOpen && (
+              <>
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] lg:hidden"
+                  onClick={() => setMobileMenuOpen(false)}
+                />
+                <motion.aside
+                  initial={{ x: '-100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '-100%' }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                  className="fixed left-0 top-0 bottom-0 w-80 bg-surface-950 z-[70] border-r border-white/10 lg:hidden flex flex-col"
+                >
+                  {renderSecondarySidebar(true)}
+                </motion.aside>
+              </>
+            )}
+          </AnimatePresence>
+
+          {/* Desktop Secondary Sidebar */}
+          <aside className="hidden lg:flex w-80 flex-col border-r border-white/5 bg-surface-950/30 backdrop-blur-xl overflow-hidden">
+            {renderSecondarySidebar()}
+          </aside>
+
+          {/* Main Chat Area */}
+          <main className="flex-1 flex flex-col min-w-0 bg-surface-950/50 relative overflow-hidden">
+            {selectedPersona ? (
+              <>
+                {/* Header */}
+                <header className="h-16 border-b border-surface-800/50 flex items-center px-4 lg:px-6 bg-surface-900/30 flex-shrink-0">
+                  <button
+                    onClick={() => setMobileMenuOpen(true)}
+                    className="lg:hidden p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors mr-2"
+                  >
+                    <Menu className="w-5 h-5" />
+                  </button>
                   
-                  {/* Input Area */}
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 lg:space-x-3 bg-surface-800/50 rounded-2xl px-3 lg:px-4 py-2 lg:py-3 border border-surface-700/50 focus-within:border-beyond-purple/50 transition-colors">
-                      <input
-                        ref={inputRef}
-                        type="text"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
-                        placeholder={'Message ' + selectedPersona.title + '...'}
-                        disabled={isLoading}
-                        className="flex-1 bg-transparent text-white placeholder-surface-400 focus:outline-none"
-                      />
-                      <button
-                        onClick={handleSend}
-                        disabled={!input.trim() || isLoading}
-                        className={cn(
-                          'p-2 rounded-xl transition-colors',
-                          input.trim() && !isLoading
-                            ? 'bg-beyond-purple text-white hover:bg-beyond-purple/80'
-                            : 'bg-surface-700 text-surface-400 cursor-not-allowed'
+                  <div className="flex items-center flex-1 min-w-0">
+                    <button
+                      onClick={() => router.push('/dashboard')}
+                      className="hidden lg:flex p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors mr-4"
+                    >
+                      <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <div className="flex items-center space-x-3 truncate">
+                      <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-xl bg-gradient-to-br from-beyond-purple/20 to-beyond-pink/20 flex items-center justify-center flex-shrink-0">
+                        {selectedPersona.avatar_url ? (
+                          <img src={selectedPersona.avatar_url} alt="" className="w-full h-full rounded-xl object-cover" />
+                        ) : (
+                          <UserIcon className="w-4 h-4 lg:w-5 lg:h-5 text-beyond-purple" />
                         )}
+                      </div>
+                      <div className="truncate">
+                        <h1 className="text-sm lg:text-lg font-semibold text-white truncate">{selectedPersona.title}</h1>
+                        <p className="text-surface-400 text-[10px] lg:text-sm truncate">
+                          {selectedPersona.description || 'Neural Assistant'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="ml-auto flex items-center space-x-2">
+                      <button
+                        onClick={() => router.push('/avatar?persona=' + selectedPersona.id)}
+                        className="flex items-center space-x-2 px-3 py-1.5 lg:px-4 lg:py-2 rounded-lg bg-gradient-to-r from-beyond-purple to-beyond-pink text-white hover:opacity-90 transition-opacity"
                       >
-                        <Send className="w-5 h-5" />
+                        <Video className="w-4 h-4 lg:w-5 lg:h-5" />
+                        <span className="hidden sm:inline text-xs lg:text-sm font-bold">AI Avatar</span>
                       </button>
                     </div>
                   </div>
+                </header>
+
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4">
+                  {messages.length === 0 ? (
+                    <div className="h-full flex items-center justify-center">
+                      <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-center max-w-md"
+                      >
+                        <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-beyond-purple/20 to-beyond-pink/20 flex items-center justify-center">
+                          <MessageCircle className="w-10 h-10 text-beyond-purple" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-white mb-4">Start a Conversation</h2>
+                        <p className="text-surface-400">
+                          Say hello to {selectedPersona.title} and start sharing your thoughts and feelings.
+                        </p>
+                      </motion.div>
+                    </div>
+                  ) : (
+                    <>
+                      {messages.map((message, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={cn(
+                            'flex items-start space-x-3',
+                            message.role === 'user' && 'flex-row-reverse space-x-reverse'
+                          )}
+                        >
+                          <div className={cn(
+                            'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
+                            message.role === 'assistant' 
+                              ? 'bg-gradient-to-br from-beyond-purple to-beyond-pink' 
+                              : 'bg-surface-700'
+                          )}>
+                            {message.role === 'assistant' ? (
+                              <Sparkles className="w-4 h-4 text-white" />
+                            ) : (
+                              <User className="w-4 h-4 text-white" />
+                            )}
+                          </div>
+                          <div className={cn(
+                            'max-w-[70%] rounded-2xl px-4 py-3 relative group',
+                            message.role === 'assistant'
+                              ? 'bg-surface-800 text-white'
+                              : 'bg-beyond-purple text-white'
+                          )}>
+                            <p className="whitespace-pre-wrap">{message.content}</p>
+                            {message.role === 'assistant' && (
+                              <button
+                                onClick={() => speakText(message.content)}
+                                className="absolute -bottom-2 -right-2 w-8 h-8 bg-beyond-purple rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                title="Speak message"
+                              >
+                                {isSpeaking ? (
+                                  <Volume2 className="w-4 h-4 text-white" />
+                                ) : (
+                                  <Volume2 className="w-4 h-4 text-white" />
+                                )}
+                              </button>
+                            )}
+                            <p className="text-xs mt-1 opacity-60">
+                              {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </motion.div>
+                      ))}
+                      
+                      {isLoading && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="flex items-center space-x-3"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-beyond-purple to-beyond-pink flex items-center justify-center">
+                            <Sparkles className="w-4 h-4 text-white" />
+                          </div>
+                          <div className="bg-surface-800 rounded-2xl px-4 py-3 flex items-center space-x-2">
+                            <Loader2 className="w-4 h-4 text-beyond-purple animate-spin" />
+                            <span className="text-surface-400 text-sm">Typing...</span>
+                          </div>
+                        </motion.div>
+                      )}
+                      
+                      <div ref={messagesEndRef} />
+                    </>
+                  )}
                 </div>
-                <p className="text-center text-surface-500 text-xs mt-2">
-                  Your conversations are private and stored securely
-                </p>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Mobile Header for no persona */}
-            <header className="lg:hidden h-16 border-b border-surface-800/50 flex items-center px-4 bg-surface-900/30">
-              <button
-                onClick={() => setMobileMenuOpen(true)}
-                className="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors mr-4"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
-              <span className="text-lg font-semibold text-white">Chats</span>
-            </header>
-            
-            <div className="h-full flex items-center justify-center p-4">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-center"
-              >
-                <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-beyond-purple/20 to-beyond-pink/20 flex items-center justify-center">
-                  <Users className="w-10 h-10 text-beyond-purple" />
+
+                {/* Input Area */}
+                <div className="p-4 border-t border-surface-800/50 bg-surface-900/30">
+                  <div className="max-w-4xl mx-auto">
+                    {/* Bottom Area with Voice Tab and Input */}
+                    <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
+                      {/* Voice Tab on Left */}
+                      <div className="flex">
+                        <button
+                          onClick={() => setShowVoiceTab(!showVoiceTab)}
+                          className="w-10 h-auto lg:h-[42px] px-2 bg-gradient-to-br from-beyond-purple to-beyond-pink rounded-l-xl flex items-center justify-center text-white transition-all hover:from-beyond-purple/80 hover:to-beyond-pink/80"
+                        >
+                          <Mic className="w-5 h-5" />
+                        </button>
+                        {showVoiceTab && (
+                          <div className="hidden lg:block w-40 p-2 bg-gradient-to-br from-surface-800/80 to-surface-900/80 rounded-r-xl border border-white/10 border-l-0 -ml-[1px]">
+                            <div className="space-y-2">
+                              <div>
+                                <label className="text-[10px] text-surface-400 block mb-0.5">Speed: {speechRate.toFixed(2)}</label>
+                                <input
+                                  type="range"
+                                  min="0.5"
+                                  max="2"
+                                  step="0.1"
+                                  value={speechRate}
+                                  onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
+                                  className="w-full accent-beyond-purple h-1"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-surface-400 block mb-0.5">Pitch: {speechPitch.toFixed(2)}</label>
+                                <input
+                                  type="range"
+                                  min="0.5"
+                                  max="2"
+                                  step="0.1"
+                                  value={speechPitch}
+                                  onChange={(e) => setSpeechPitch(parseFloat(e.target.value))}
+                                  className="w-full accent-beyond-purple h-1"
+                                />
+                              </div>
+                              
+                              {/* Language Selector */}
+                              <div>
+                                <label className="text-[10px] text-surface-400 block mb-0.5">Language</label>
+                                <select
+                                  value={language}
+                                  onChange={(e) => setLanguage(e.target.value as 'en' | 'hi' | 'mr')}
+                                  className="w-full bg-surface-700/50 text-white text-[10px] rounded px-1.5 py-1 border border-white/10"
+                                >
+                                  <option value="en">English</option>
+                                  <option value="hi">हिन्दी (Hindi)</option>
+                                  <option value="mr">मराठी (Marathi)</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Input Area */}
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 lg:space-x-3 bg-surface-800/50 rounded-2xl px-3 lg:px-4 py-2 lg:py-3 border border-surface-700/50 focus-within:border-beyond-purple/50 transition-colors">
+                          <input
+                            ref={inputRef}
+                            type="text"
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
+                            placeholder={'Message ' + selectedPersona.title + '...'}
+                            disabled={isLoading}
+                            className="flex-1 bg-transparent text-white placeholder-surface-400 focus:outline-none"
+                          />
+                          <button
+                            onClick={handleSend}
+                            disabled={!input.trim() || isLoading}
+                            className={cn(
+                              'p-2 rounded-xl transition-colors',
+                              input.trim() && !isLoading
+                                ? 'bg-beyond-purple text-white hover:bg-beyond-purple/80'
+                                : 'bg-surface-700 text-surface-400 cursor-not-allowed'
+                            )}
+                          >
+                            <Send className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-center text-surface-500 text-xs mt-2">
+                      Your conversations are private and stored securely
+                    </p>
+                  </div>
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-4">No Persona Selected</h2>
-                <p className="text-surface-400 mb-6">Select a persona from the sidebar or create a new one</p>
-                <button
-                  onClick={() => router.push('/dashboard')}
-                  className="btn-primary"
-                >
-                  Go to Personas
-                </button>
-              </motion.div>
-            </div>
-          </>
-        )}
-      </main>
+              </>
+            ) : (
+              <>
+                {/* Mobile Header for no persona */}
+                <header className="lg:hidden h-16 border-b border-surface-800/50 flex items-center px-4 bg-surface-900/30">
+                  <button
+                    onClick={() => setMobileMenuOpen(true)}
+                    className="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors mr-4"
+                  >
+                    <Menu className="w-5 h-5" />
+                  </button>
+                  <span className="text-lg font-semibold text-white">Chats</span>
+                </header>
+                
+                <div className="h-full flex items-center justify-center p-4">
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center"
+                  >
+                    <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-beyond-purple/20 to-beyond-pink/20 flex items-center justify-center">
+                      <Users className="w-10 h-10 text-beyond-purple" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-4">No Persona Selected</h2>
+                    <p className="text-surface-400 mb-6">Select a persona from the sidebar or create a new one</p>
+                    <button
+                      onClick={() => router.push('/dashboard')}
+                      className="btn-primary"
+                    >
+                      Go to Personas
+                    </button>
+                  </motion.div>
+                </div>
+              </>
+            )}
+          </main>
+        </div>
+      </div>
     </div>
   );
 }

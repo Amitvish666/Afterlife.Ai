@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
+import { sessionsDb, personasDb, getMemoriesForPersona, persistData, addSession } from '../../../../../auth/db';
 
 const SECRET_KEY = 'your-secret-key-change-in-production';
 
@@ -8,43 +9,6 @@ function getOllamaConfig(): { baseUrl: string; model: string } {
   return {
     baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
     model: process.env.OLLAMA_MODEL || 'llama3.2'
-  };
-}
-
-interface SessionRecord {
-  [key: string]: {
-    id: string;
-    persona_id: string;
-    user_id: string;
-    title: string;
-    message_count: number;
-    created_at: string;
-    updated_at: string;
-  };
-}
-
-interface PersonaRecord {
-  [key: string]: {
-    id: string;
-    user_id: string;
-    title: string;
-    description: string;
-    relation: string;
-    purpose: string;
-    status: string;
-    avatar_url?: string;
-    created_at: string;
-  };
-}
-
-interface MemoryRecord {
-  [key: string]: {
-    id: string;
-    persona_id: string;
-    content: string;
-    type: string;
-    importance: number;
-    created_at: string;
   };
 }
 
@@ -63,22 +27,12 @@ function verifyToken(request: NextRequest): { userId: string; email: string } | 
   }
 }
 
-function loadFromStorage<T>(key: string): T {
-  if (typeof window === 'undefined') return {} as T;
-  try {
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : ({} as T);
-  } catch {
-    return {} as T;
-  }
-}
-
 // Get AI response from Ollama
 async function getAIResponse(
   message: string,
   history: { role: string; content: string }[],
-  persona: PersonaRecord[string],
-  memories: MemoryRecord[string][],
+  persona: any,
+  memories: any[],
   language: string = 'en'
 ): Promise<{ content: string; provider: string } | null> {
   const { baseUrl, model } = getOllamaConfig();
@@ -172,15 +126,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       );
     }
 
-    // Load sessions from localStorage
-    const sessionsDb: SessionRecord = loadFromStorage('beyondlife_sessions');
-
-    // Use persona from request body or fallback to localStorage
+    // Use persona from request body or fallback to in-memory db
     let persona = personaFromBody;
-    
     if (!persona) {
-      // Load data from localStorage as fallback
-      const personasDb: PersonaRecord = loadFromStorage('beyondlife_personas');
       persona = personasDb[personaId];
     }
     
@@ -191,16 +139,17 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       );
     }
 
-    // Get memories from request body or localStorage
+    // Get memories from request body or in-memory db
     const memories = memoriesFromBody.length > 0 
       ? memoriesFromBody 
-      : Object.values(loadFromStorage<Record<string, MemoryRecord[string]>>('beyondlife_memories') || {}).filter(m => m.persona_id === personaId);
+      : getMemoriesForPersona(personaId);
 
     // Find or create session
     let sessionId: string | null = null;
-    let existingSession: typeof sessionsDb[string] | null = null;
+    let existingSession: any = null;
 
-    for (const [id, s] of Object.entries(sessionsDb)) {
+    for (const [id, sessionObj] of Object.entries(sessionsDb)) {
+      const s = sessionObj as any;
       if (s.persona_id === personaId && s.user_id === user.userId && s.title === 'New Chat') {
         sessionId = id;
         existingSession = s;
@@ -219,17 +168,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      sessionsDb[newSessionId] = newSession;
+      addSession(newSession);
       sessionId = newSessionId;
     } else if (existingSession) {
       existingSession.message_count += 1;
       existingSession.updated_at = new Date().toISOString();
       sessionsDb[sessionId] = existingSession;
-    }
-
-    // Save sessions
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('beyondlife_sessions', JSON.stringify(sessionsDb));
+      persistData();
     }
 
     // Try to get AI response

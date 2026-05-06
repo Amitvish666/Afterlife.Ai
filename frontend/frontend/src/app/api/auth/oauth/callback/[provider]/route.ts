@@ -161,18 +161,20 @@ export async function GET(request: NextRequest, { params }: { params: { provider
     
     const response = NextResponse.redirect(redirectUrl);
     
-    // Set cookies
+    // Set cookies - httpOnly: false allows client-side JS to read them
     response.cookies.set('access_token', accessToken, {
-      httpOnly: true,
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      path: '/',
       maxAge: ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     });
     
     response.cookies.set('refresh_token', refreshToken, {
-      httpOnly: true,
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      path: '/',
       maxAge: REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
     });
 
@@ -181,6 +183,7 @@ export async function GET(request: NextRequest, { params }: { params: { provider
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      path: '/',
       maxAge: ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     });
     
@@ -188,6 +191,7 @@ export async function GET(request: NextRequest, { params }: { params: { provider
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      path: '/',
       maxAge: ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     });
     
@@ -195,6 +199,7 @@ export async function GET(request: NextRequest, { params }: { params: { provider
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      path: '/',
       maxAge: ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     });
 

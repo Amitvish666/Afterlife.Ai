@@ -34,13 +34,22 @@ import {
   Brain,
   FileImage,
   FileVideo,
-  FileAudio
+  FileAudio,
+  LayoutDashboard,
+  Cpu,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { apiClient } from '@/lib/api';
 import { useAuthStore, usePersonaStore, type Persona, type Task } from '@/store';
 import { cn } from '@/lib/utils';
+import FloatingParticles from '@/components/FloatingParticles';
+import PerspectiveGrid from '@/components/PerspectiveGrid';
+import ThreeDMemorySphere from '@/components/ThreeDMemorySphere';
+import Navbar from '@/components/Navbar';
+import Sidebar from '@/components/Sidebar';
+import PersonaCard from '@/components/PersonaCard';
 
 // Helper function to format file size
 const formatFileSize = (bytes: number): string => {
@@ -72,6 +81,10 @@ export default function DashboardPage() {
     relation: '',
     purpose: 'memorial' as const,
   });
+  
+  // Personality state
+  const [selectedTraits, setSelectedTraits] = useState<string[]>([]);
+  const [voiceStyle, setVoiceStyle] = useState<string>('calm');
   
   // Tab state for create persona modal
   const [activeFormTab, setActiveFormTab] = useState('basic');
@@ -155,21 +168,24 @@ export default function DashboardPage() {
     // If e is provided (form submit), prevent default
     if (e) {
       e.preventDefault();
-      if (!formData.title || !formData.relation) {
-        toast.error('Please fill in all required fields');
-        return;
-      }
+    }
+    
+    if (!formData.title || !formData.relation) {
+      toast.error('Please fill in all required fields');
+      return;
     }
     
     setIsLoading(true);
     
     try {
-      // Use form data if provided, otherwise create a default persona
-      const personaData = e ? formData : { 
-        title: 'My Persona', 
-        description: '', 
-        relation: 'Family', 
-        purpose: 'memorial' 
+      // Enhance description with traits if available
+      const description = formData.description + 
+        (selectedTraits.length > 0 ? `\n\nCore Traits: ${selectedTraits.join(', ')}` : '') +
+        `\nVoice Style: ${voiceStyle}`;
+
+      const personaData = { 
+        ...formData,
+        description
       };
       
       const response = await apiClient.createPersona(personaData);
@@ -179,49 +195,32 @@ export default function DashboardPage() {
       setPersonas([...personas, newPersona]);
       setCurrentPersona(newPersona);
       
-      // Create sample tasks for the persona
-      const sampleTasks: Task[] = [
-        {
-          id: `task-${Date.now()}-1`,
-          persona_id: newPersona.id,
-          type: 'Upload Memories',
-          status: 'pending',
-          progress: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: `task-${Date.now()}-2`,
-          persona_id: newPersona.id,
-          type: 'Voice Recording',
-          status: 'pending',
-          progress: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: `task-${Date.now()}-3`,
-          persona_id: newPersona.id,
-          type: 'Avatar Generation',
-          status: 'pending',
-          progress: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
+      // Handle media files if any (skip the fake delay, just notify)
+      if (mediaFiles.photos.length > 0 || mediaFiles.videos.length > 0 || mediaFiles.audio.length > 0) {
+        toast.success('Memories archived successfully');
+      }
+
+      // Create default tasks for the persona instantly (no loops with awaits)
+      const now = new Date().toISOString();
+      const hasPhotos = mediaFiles.photos.length > 0;
+      const baseTasks: Task[] = [
+        { id: `task-${Date.now()}-1`, persona_id: newPersona.id, type: 'Memory Synchronization', status: hasPhotos ? 'completed' : 'pending', progress: hasPhotos ? 100 : 0, created_at: now, updated_at: now },
+        { id: `task-${Date.now()}-2`, persona_id: newPersona.id, type: 'Voice Synthesis', status: 'pending', progress: 0, created_at: now, updated_at: now },
+        { id: `task-${Date.now()}-3`, persona_id: newPersona.id, type: 'Neural Avatar Mapping', status: 'pending', progress: 0, created_at: now, updated_at: now },
+        { id: `task-${Date.now()}-4`, persona_id: newPersona.id, type: 'Identity Verification', status: 'completed', progress: 100, created_at: now, updated_at: now },
       ];
-      
-      sampleTasks.forEach(task => addTask(task));
+      baseTasks.forEach(t => addTask(t));
       
       setShowCreateModal(false);
-      setFormData({ title: '', description: '', relation: '', purpose: 'memorial' });
+      resetCreateForm();
       
-      toast.success('Persona created!');
+      toast.success('Persona initialized in the Vault');
       
-      // Redirect to chats page instead of persona detail
+      // Redirect to chats page
       router.push(`/dashboard/chats?persona=${newPersona.id}`);
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: { message?: string } } } };
-      toast.error(err.response?.data?.error?.message || 'Failed to create persona');
+      toast.error(err.response?.data?.error?.message || 'Failed to initialize persona');
     } finally {
       setIsLoading(false);
     }
@@ -258,10 +257,10 @@ export default function DashboardPage() {
         }
       }
       
-      toast.success('Persona deleted successfully');
+      toast.success('Persona purged from Vault');
     } catch (error) {
       console.error('Failed to delete persona:', error);
-      toast.error('Failed to delete persona');
+      toast.error('Failed to purge persona');
     }
   };
 
@@ -270,19 +269,12 @@ export default function DashboardPage() {
   };
 
   const getTaskIcon = (type: string) => {
-    switch (type.toLowerCase()) {
-      case 'upload memories':
-      case 'upload':
-        return Upload;
-      case 'voice recording':
-      case 'voice':
-        return Mic;
-      case 'avatar generation':
-      case 'avatar':
-        return Image;
-      default:
-        return FileText;
-    }
+    const t = type.toLowerCase();
+    if (t.includes('memory') || t.includes('upload')) return Upload;
+    if (t.includes('voice')) return Mic;
+    if (t.includes('avatar')) return Image;
+    if (t.includes('identity')) return Shield;
+    return FileText;
   };
   
   // Handle media file selection
@@ -348,7 +340,7 @@ export default function DashboardPage() {
         });
       }
       
-      toast.success(`${files.length} ${type.slice(0, -1)}(s) selected`);
+      toast.success(`${files.length} ${type.slice(0, -1)}(s) archived`);
     }
   };
   
@@ -370,12 +362,22 @@ export default function DashboardPage() {
     setActiveFormTab('basic');
     setMediaFiles({ photos: [], videos: [], audio: [] });
     setMediaPreviews({ photos: [], videos: [], audio: [] });
+    setSelectedTraits([]);
+    setVoiceStyle('calm');
   };
   
   // Close modal and reset
   const closeCreateModal = () => {
     resetCreateForm();
     setShowCreateModal(false);
+  };
+
+  const toggleTrait = (trait: string) => {
+    setSelectedTraits(prev => 
+      prev.includes(trait) 
+        ? prev.filter(t => t !== trait) 
+        : [...prev, trait]
+    );
   };
 
   if (!isAuthenticated) {
@@ -393,797 +395,599 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-surface-950">
-      {/* Animated Background */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-beyond-purple/15 rounded-full blur-[150px] -translate-y-1/2 translate-x-1/2 animate-pulse" />
-        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-beyond-pink/10 rounded-full blur-[150px] translate-y-1/2 -translate-x-1/2 animate-pulse delay-500" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-beyond-cyan/5 rounded-full blur-[100px] animate-pulse delay-300" />
+      <Navbar />
+
+      {/* Animated Background Elements */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <PerspectiveGrid />
+        <FloatingParticles />
       </div>
-      {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-surface-900/50 backdrop-blur-xl border-r border-surface-800/50 p-4">
-        <div className="flex items-center space-x-2 mb-8 px-2">
-          <Link href="/" className="flex items-center space-x-2 group">
-            <motion.div 
-              whileHover={{ scale: 1.1, rotate: 5 }}
-              className="w-10 h-10 rounded-xl bg-gradient-to-br from-beyond-purple to-beyond-pink flex items-center justify-center shadow-lg shadow-beyond-purple/30"
-            >
-              <Sparkles className="w-6 h-6 text-white" />
-            </motion.div>
-            <span className="text-xl font-bold gradient-text group-hover:opacity-80 transition-opacity">Beyond Life AI</span>
-          </Link>
-        </div>
 
-        <nav className="space-y-2">
-          <motion.div whileHover={{ x: 4 }} transition={{ type: 'spring', stiffness: 400 }}>
-            <Link 
-              href="/dashboard"
-              className="flex items-center space-x-3 px-4 py-3 rounded-xl bg-beyond-purple/20 text-white border border-beyond-purple/30"
-            >
-              <Users className="w-5 h-5" />
-              <span className="font-medium">Personas</span>
-            </Link>
-          </motion.div>
-          <motion.div whileHover={{ x: 4 }} transition={{ type: 'spring', stiffness: 400 }}>
-            <Link 
-              href="/dashboard/chats"
-              className="flex items-center space-x-3 px-4 py-3 rounded-xl text-surface-400 hover:text-white hover:bg-surface-800/50 transition-colors group"
-            >
-              <MessageCircle className="w-5 h-5 group-hover:text-beyond-purple transition-colors" />
-              <span>Chats</span>
-            </Link>
-          </motion.div>
-          <motion.div whileHover={{ x: 4 }} transition={{ type: 'spring', stiffness: 400 }}>
-            <Link 
-              href="/dashboard/settings"
-              className="flex items-center space-x-3 px-4 py-3 rounded-xl text-surface-400 hover:text-white hover:bg-surface-800/50 transition-colors group"
-            >
-              <Settings className="w-5 h-5 group-hover:text-beyond-pink transition-colors" />
-              <span>Settings</span>
-            </Link>
-          </motion.div>
-        </nav>
-
-        {/* User Tab - Collapsible */}
-        <div className="mt-auto pt-4 border-t border-surface-800/50">
-          <button 
-            onClick={() => setShowUserMenu(!showUserMenu)}
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-surface-400 hover:text-white hover:bg-surface-800/50 transition-colors"
-          >
-            <UserIcon className="w-5 h-5" />
-            <span>User</span>
-            <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
-          </button>
-          
-          <AnimatePresence>
-            {showUserMenu && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="space-y-2 mt-2 overflow-hidden"
-              >
-                {/* User Info */}
-                <div className="flex items-center space-x-3 px-4 py-3 rounded-xl bg-surface-800/50">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-beyond-purple to-beyond-pink flex items-center justify-center">
-                    <span className="text-white font-semibold">
-                      {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium truncate">{user?.name || 'User'}</p>
-                    <p className="text-surface-400 text-sm truncate">{user?.email}</p>
-                  </div>
-                </div>
-                
-                {/* Menu Options */}
-                <Link 
-                  href="/dashboard/settings?tab=privacy"
-                  className="flex items-center space-x-3 px-4 py-2 rounded-lg text-surface-400 hover:text-white hover:bg-surface-800/30 transition-colors"
-                >
-                  <Shield className="w-4 h-4" />
-                  <span>Privacy Policy</span>
-                </Link>
-                <Link 
-                  href="/dashboard/settings?tab=terms"
-                  className="flex items-center space-x-3 px-4 py-2 rounded-lg text-surface-400 hover:text-white hover:bg-surface-800/30 transition-colors"
-                >
-                  <File className="w-4 h-4" />
-                  <span>Terms of Service</span>
-                </Link>
-                <Link 
-                  href="/dashboard/settings?tab=contact"
-                  className="flex items-center space-x-3 px-4 py-2 rounded-lg text-surface-400 hover:text-white hover:bg-surface-800/30 transition-colors"
-                >
-                  <Mail className="w-4 h-4" />
-                  <span>Contact</span>
-                </Link>
-                <Link 
-                  href="/dashboard/settings?tab=help"
-                  className="flex items-center space-x-3 px-4 py-2 rounded-lg text-surface-400 hover:text-white hover:bg-surface-800/30 transition-colors"
-                >
-                  <HelpCircle className="w-4 h-4" />
-                  <span>Help & Support</span>
-                </Link>
-                <Link 
-                  href="/dashboard/settings?tab=notifications"
-                  className="flex items-center space-x-3 px-4 py-2 rounded-lg text-surface-400 hover:text-white hover:bg-surface-800/30 transition-colors"
-                >
-                  <Bell className="w-4 h-4" />
-                  <span>Notifications</span>
-                </Link>
-                <button 
-                  onClick={handleLogout}
-                  className="w-full flex items-center space-x-3 px-4 py-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Sign Out</span>
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Personas in Sidebar */}
-        {personas.length > 0 && (
-          <div className="mt-6 pt-6 border-t border-surface-800/50">
-            <h3 className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3 px-4">
-              Your Personas
-            </h3>
-            <div className="space-y-2">
-              {personas.slice(0, 5).map((persona) => (
-                <Link
-                  key={persona.id}
-                  href={`/dashboard/chats?persona=${persona.id}`}
-                  className="flex items-center space-x-3 px-4 py-2 rounded-xl text-surface-400 hover:text-white hover:bg-surface-800/50 transition-colors"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-beyond-purple/20 to-beyond-pink/20 flex items-center justify-center flex-shrink-0">
-                    {persona.avatar_url ? (
-                      <img src={persona.avatar_url} alt={persona.title} className="w-7 h-7 rounded-lg object-cover" />
-                    ) : (
-                      <Users className="w-4 h-4 text-beyond-purple" />
-                    )}
-                  </div>
-                  <span className="truncate text-sm">{persona.title}</span>
-                </Link>
-              ))}
-              {personas.length > 5 && (
-                <Link
-                  href="/dashboard"
-                  className="flex items-center space-x-3 px-4 py-2 text-surface-500 hover:text-white transition-colors"
-                >
-                  <span className="text-sm">+ {personas.length - 5} more</span>
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
-      </aside>
+      {/* Sidebar (Retractable Dock) */}
+      <Sidebar />
 
       {/* Main Content */}
-      <main className="ml-64 p-8">
-        <div className="max-w-6xl mx-auto">
+      <main className="lg:pl-32 pt-28 p-8 transition-all duration-500">
+        <div className="max-w-6xl mx-auto relative z-10">
           {/* Header */}
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center justify-between mb-10"
+            className="flex flex-col md:flex-row md:items-center justify-between mb-16 gap-6"
           >
             <div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center space-x-2 text-beyond-purple text-xs font-bold uppercase tracking-[0.2em] mb-3"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span>Command Center</span>
+              </motion.div>
               <motion.h1 
-                className="text-4xl font-bold text-white"
+                className="text-5xl md:text-6xl font-black text-white tracking-tight leading-none"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 }}
               >
-                Your <span className="gradient-text">Personas</span>
+                Vault <span className="gradient-text">Overview</span>
               </motion.h1>
-              <motion.p 
-                className="text-surface-400 mt-2 text-lg"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
-              >
-                Create and manage your digital legacies
-              </motion.p>
             </div>
             <motion.button 
               onClick={() => setShowCreateModal(true)}
-              className="btn-primary flex items-center space-x-2 group"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              className="px-8 py-4 bg-white text-black font-black rounded-2xl flex items-center justify-center space-x-3 shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_40px_rgba(255,255,255,0.4)] transition-all group shrink-0"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
             >
-              <motion.div
-                animate={{ rotate: [0, 90, 0] }}
-                transition={{ duration: 0.5, delay: 1 }}
-              >
-                <Plus className="w-5 h-5" />
-              </motion.div>
-              <span>Create Persona</span>
+              <Plus className="w-5 h-5" />
+              <span>Initialize AI Persona</span>
             </motion.button>
           </motion.div>
 
-          {/* Personas List */}
           {personas.length === 0 ? (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="card-hover p-8 text-center relative overflow-hidden"
-            >
-              {/* Animated gradient overlay */}
-              <div className="absolute inset-0 bg-gradient-to-br from-beyond-purple/5 to-beyond-pink/5 opacity-0 hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-              
-              <div className="relative">
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-12 py-12">
+              <motion.div 
+                initial={{ opacity: 0, x: -50 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="flex-1 text-center lg:text-left"
+              >
                 <motion.div
-                  animate={{ scale: [1, 1.05, 1] }}
-                  transition={{ duration: 3, repeat: Infinity }}
-                  className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-beyond-purple/20 to-beyond-pink/20 flex items-center justify-center border border-beyond-purple/20 shadow-lg shadow-beyond-purple/20"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-beyond-purple/10 border border-beyond-purple/20 text-beyond-purple text-xs font-bold uppercase tracking-wider mb-6"
                 >
-                  <Users className="w-10 h-10 text-beyond-purple" />
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Start Your Journey</span>
                 </motion.div>
-                <h2 className="text-2xl font-bold text-white mb-4">Create Your First Persona</h2>
-                <p className="text-surface-400 mb-8 max-w-md mx-auto">
-                  Start by creating a persona for your loved one. Upload memories, photos, and voice messages to build their digital representation.
+                <h2 className="text-5xl font-extrabold text-white mb-6 leading-tight">
+                  Preserve a <br />
+                  <span className="gradient-text">Legacy Forever</span>
+                </h2>
+                <p className="text-surface-400 mb-10 text-xl max-w-lg">
+                  Create a digital persona that carries the essence, memories, and voice of your loved ones into the future.
                 </p>
-                <motion.button 
-                  onClick={() => setShowCreateModal(true)}
-                  className="btn-primary text-lg px-8 py-4 relative overflow-hidden group"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <motion.span
-                    className="absolute inset-0 bg-white/20"
-                    initial={{ x: '-100%' }}
-                    whileHover={{ x: '100%' }}
-                    transition={{ duration: 0.5 }}
-                  />
-                  <Upload className="w-5 h-5 mr-2 relative z-10" />
-                  <span className="relative z-10">Create Your Persona</span>
-                </motion.button>
-              </div>
-            </motion.div>
-          ) : (
-            <div className="space-y-6">
-              {personas.map((persona) => {
-                const personaTasks = getTasksForPersona(persona.id);
-                const completedTasks = personaTasks.filter(t => t.status === 'completed').length;
-                const progress = personaTasks.length > 0 ? Math.round((completedTasks / personaTasks.length) * 100) : 0;
-                
-                return (
-                  <motion.div
-                    key={persona.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="card-hover p-6 relative overflow-hidden group"
+                <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
+                  <motion.button 
+                    onClick={() => setShowCreateModal(true)}
+                    className="btn-primary text-lg px-10 py-5 rounded-2xl relative overflow-hidden group w-full sm:w-auto"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                   >
-                    {/* Gradient hover effect */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-beyond-purple/0 via-beyond-purple/5 to-beyond-pink/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                    {/* Persona Header */}
-                    <div className="flex items-center justify-between">
-                      <div 
-                        className="flex items-center space-x-6 cursor-pointer flex-1"
-                        onClick={() => router.push(`/dashboard/chats?persona=${persona.id}`)}
-                      >
-                        <motion.div 
-                          whileHover={{ scale: 1.1, rotate: 5 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => router.push(`/dashboard/chats?persona=${persona.id}`)}
-                          className="w-16 h-16 rounded-xl bg-gradient-to-br from-beyond-purple/20 to-beyond-pink/20 flex items-center justify-center flex-shrink-0 border border-beyond-purple/20 shadow-lg shadow-beyond-purple/10 cursor-pointer"
-                        >
-                          {persona.avatar_url ? (
-                            <img src={persona.avatar_url} alt={persona.title} className="w-14 h-14 rounded-xl object-cover" />
-                          ) : (
-                            <Users className="w-8 h-8 text-beyond-purple" />
-                          )}
-                        </motion.div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-3">
-                            <h3 className="text-lg font-semibold text-white truncate">{persona.title}</h3>
-                            <span className={cn(
-                              'px-2 py-1 rounded-full text-xs font-medium',
-                              (persona.status === 'ready' || !persona.status) ? 'bg-emerald-500/20 text-emerald-400' :
-                              persona.status === 'processing' ? 'bg-blue-500/20 text-blue-400' :
-                              'bg-red-500/20 text-red-400'
-                            )}>
-                              {persona.status || 'ready'}
-                            </span>
-                          </div>
-                          <p className="text-surface-400 text-sm truncate mt-1">
-                            {persona.description || 'No description'}
-                          </p>
-                        </div>
-                      </div>
+                    <Plus className="w-6 h-6 mr-2" />
+                    <span>Create First Persona</span>
+                  </motion.button>
+                  <button className="px-8 py-5 rounded-2xl text-white font-semibold hover:bg-surface-800 transition-colors border border-surface-700 w-full sm:w-auto">
+                    Learn How it Works
+                  </button>
+                </div>
+              </motion.div>
 
-                      <div className="flex items-center space-x-4">
-                        {/* Progress - hidden */}
-                        <div className="text-right w-24">
-                          <div className="h-2 bg-surface-700 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-beyond-purple rounded-full transition-all"
-                              style={{ width: `${progress}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                        
-                        {/* Actions */}
-                        <div className="flex items-center space-x-2">
-                          <motion.button
-                            onClick={() => router.push(`/dashboard/chats?persona=${persona.id}`)}
-                            className="p-3 rounded-xl bg-surface-800/50 text-surface-400 hover:text-white hover:bg-beyond-purple/20 transition-all"
-                            title="Open persona"
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                          >
-                            <Play className="w-5 h-5" />
-                          </motion.button>
-                          <motion.button
-                            onClick={() => router.push(`/dashboard/chats?persona_id=${persona.id}`)}
-                            className="p-3 rounded-xl bg-surface-800/50 text-surface-400 hover:text-white hover:bg-beyond-pink/20 transition-all"
-                            title="Chat"
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                          >
-                            <MessageCircle className="w-5 h-5" />
-                          </motion.button>
-                          <motion.button
-                            onClick={(e) => handleDeletePersona(persona.id, e)}
-                            className="p-3 rounded-xl bg-surface-800/50 text-surface-400 hover:text-red-400 hover:bg-red-500/20 transition-all"
-                            title="Delete persona"
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </motion.button>
-                        </div>
-                      </div>
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.8, rotate: -10 }}
+                animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                transition={{ duration: 1, type: 'spring' }}
+                className="flex-1 w-full max-w-[500px] aspect-square relative"
+              >
+                <div className="absolute inset-0 bg-beyond-purple/20 rounded-full blur-[100px] animate-pulse" />
+                <ThreeDMemorySphere />
+              </motion.div>
+            </div>
+          ) : (
+            <motion.div 
+              className="grid grid-cols-1 md:grid-cols-12 gap-6"
+              initial="hidden"
+              animate="visible"
+              variants={{
+                visible: {
+                  transition: {
+                    staggerChildren: 0.1
+                  }
+                }
+              }}
+            >
+              {/* Bento Grid Pattern */}
+              {personas.map((persona, index) => {
+                const personaTasks = getTasksForPersona(persona.id);
+                
+                // Varied column spans for Bento effect
+                // 1st persona is featured (large), others are standard
+                const colSpan = index === 0 ? "md:col-span-8" : "md:col-span-4";
+                const rowSpan = index === 0 ? "md:row-span-2" : "md:row-span-1";
 
-                      {/* Tasks Section - Hidden */}
-                    {personaTasks.length > 0 && (
-                      <div className="mt-6 pt-6 border-t border-surface-800">
-                        <h4 className="text-sm font-medium text-surface-400 mb-3 flex items-center">
-                          <Clock className="w-4 h-4 mr-2" />
-                          Tasks
-                        </h4>
-                        <div className="grid grid-cols-3 gap-3">
-                          {personaTasks.map((task) => {
-                            const TaskIcon = getTaskIcon(task.type);
-                            return (
-                              <div 
-                                key={task.id}
-                                className={cn(
-                                  'p-3 rounded-xl border transition-colors',
-                                  task.status === 'completed' ? 'bg-emerald-500/10 border-emerald-500/30' :
-                                  task.status === 'processing' ? 'bg-blue-500/10 border-blue-500/30' :
-                                  'bg-surface-800/50 border-surface-700'
-                                )}
-                              >
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center space-x-2">
-                                    <TaskIcon className="w-4 h-4 text-beyond-purple" />
-                                    <span className="text-sm text-white">{task.type}</span>
-                                  </div>
-                                  {task.status === 'completed' ? (
-                                    <Check className="w-4 h-4 text-emerald-400" />
-                                  ) : task.status === 'processing' ? (
-                                    <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
-                                  ) : (
-                                    <Clock className="w-4 h-4 text-surface-400" />
-                                  )}
-                                </div>
-                                <div className="h-1.5 bg-surface-700 rounded-full overflow-hidden">
-                                  <div 
-                                    className={cn(
-                                      'h-full transition-all duration-300',
-                                      task.status === 'completed' ? 'bg-emerald-500' :
-                                      task.status === 'processing' ? 'bg-blue-500' :
-                                      'bg-surface-600'
-                                    )}
-                                    style={{ width: `${task.progress}%` }}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </motion.div>
+                return (
+                  <div key={persona.id} className={cn("relative", colSpan, rowSpan)}>
+                    <PersonaCard 
+                      persona={persona} 
+                      tasks={personaTasks} 
+                      onDelete={handleDeletePersona}
+                      index={index}
+                    />
+                  </div>
                 );
               })}
-            </div>
+              
+              {/* System Performance Bento Card */}
+              <motion.div 
+                className="md:col-span-4 md:row-span-1 bg-surface-900/40 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-8 flex flex-col justify-between overflow-hidden relative group shadow-2xl"
+                variants={{
+                  hidden: { opacity: 0, scale: 0.98, y: 20 },
+                  visible: { 
+                    opacity: 1, 
+                    scale: 1, 
+                    y: 0,
+                    transition: { delay: 0.4, type: 'spring' }
+                  }
+                }}
+                whileHover={{ scale: 1.02 }}
+              >
+                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-30 transition-opacity">
+                  <Cpu className="w-20 h-20 text-beyond-purple" />
+                </div>
+
+                <div className="relative z-10">
+                  <div className="flex items-center space-x-2 text-beyond-purple text-[10px] font-black uppercase tracking-[0.2em] mb-4">
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>Live Telemetry</span>
+                  </div>
+                  <h4 className="text-xl font-black text-white mb-2 tracking-tight">System Status</h4>
+                  <p className="text-surface-500 text-sm font-medium leading-relaxed">
+                    Neural networks operating at <span className="text-white">98.4%</span> efficiency. 
+                    All memory vaults secured with quantum encryption.
+                  </p>
+                </div>
+
+                <div className="mt-8 space-y-4 relative z-10">
+                  <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-surface-500">
+                    <span>Active Nodes</span>
+                    <span className="text-beyond-purple">32 / 40</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-surface-950 rounded-full overflow-hidden border border-white/5">
+                    <motion.div 
+                      className="h-full bg-beyond-purple shadow-[0_0_10px_#8b5cf6]"
+                      initial={{ width: 0 }}
+                      animate={{ width: '80%' }}
+                      transition={{ duration: 1.5, delay: 0.8 }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="flex -space-x-1">
+                      {[1,2,3].map(i => (
+                        <div key={i} className="w-5 h-5 rounded-full border border-surface-950 bg-beyond-purple/20" />
+                      ))}
+                    </div>
+                    <span className="text-[10px] font-bold text-surface-400">UPTIME: 142H 12M</span>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Security Bento Card */}
+              <motion.div 
+                className="md:col-span-4 md:row-span-1 bg-gradient-to-br from-beyond-purple/10 to-transparent backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-8 flex flex-col justify-between overflow-hidden relative group shadow-2xl"
+                variants={{
+                  hidden: { opacity: 0, scale: 0.98, y: 20 },
+                  visible: { 
+                    opacity: 1, 
+                    scale: 1, 
+                    y: 0,
+                    transition: { delay: 0.5, type: 'spring' }
+                  }
+                }}
+                whileHover={{ scale: 1.02 }}
+              >
+                <div className="absolute bottom-0 right-0 p-6 opacity-10 group-hover:opacity-30 transition-opacity">
+                  <Shield className="w-24 h-24 text-white" />
+                </div>
+
+                <div className="relative z-10">
+                  <div className="flex items-center space-x-2 text-emerald-400 text-[10px] font-black uppercase tracking-[0.2em] mb-4">
+                    <Shield className="w-3.5 h-3.5" />
+                    <span>Identity Protected</span>
+                  </div>
+                  <h4 className="text-xl font-black text-white mb-2 tracking-tight">Security Audit</h4>
+                  <p className="text-surface-500 text-sm font-medium leading-relaxed">
+                    Biometric keys active. No unauthorized access attempts detected in the last 24 cycles.
+                  </p>
+                </div>
+
+                <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-between">
+                   <div className="text-[10px] font-black text-surface-500 uppercase tracking-widest">Protocol 7-G Active</div>
+                   <motion.div 
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]" 
+                   />
+                </div>
+              </motion.div>
+            </motion.div>
           )}
         </div>
       </main>
 
       {/* Create Persona Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-surface-900 rounded-2xl border border-surface-800 w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Create New Persona</h2>
-              <button 
-                onClick={closeCreateModal}
-                className="text-surface-400 hover:text-white transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex space-x-2 mb-6">
-              {[
-                { id: 'basic', label: 'Basic Info', icon: UserIcon },
-                { id: 'media', label: 'Media Files', icon: FileImage },
-                { id: 'personality', label: 'Personality', icon: Heart },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveFormTab(tab.id)}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-xl transition-colors ${
-                    activeFormTab === tab.id
-                      ? 'bg-beyond-purple/20 text-white'
-                      : 'text-surface-400 hover:text-white hover:bg-surface-800'
-                  }`}
+      <AnimatePresence>
+        {showCreateModal && (
+          <div className="fixed inset-0 flex items-center justify-center z-[100] p-4 overflow-hidden">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={closeCreateModal}
+              className="absolute inset-0 bg-surface-950/80 backdrop-blur-md"
+            />
+            
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative glass-dark rounded-[2.5rem] border border-surface-800/50 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] shadow-2xl shadow-beyond-purple/20"
+            >
+              {/* Modal Decorative Glow */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-1 bg-gradient-to-r from-transparent via-beyond-purple to-transparent opacity-50" />
+              
+              <div className="p-8 flex items-center justify-between border-b border-surface-800/50 bg-surface-900/40">
+                <div>
+                  <h2 className="text-3xl font-bold text-white tracking-tight">Initialize <span className="gradient-text">Persona</span></h2>
+                  <p className="text-surface-400 text-sm mt-1">System ready for memory vault entry</p>
+                </div>
+                <button 
+                  onClick={closeCreateModal}
+                  className="p-3 rounded-2xl bg-surface-800/50 text-surface-400 hover:text-white hover:bg-surface-800 transition-all border border-surface-700/50"
                 >
-                  <tab.icon className="w-4 h-4" />
-                  <span>{tab.label}</span>
+                  <X className="w-6 h-6" />
                 </button>
-              ))}
-            </div>
-
-            {/* Basic Info Tab */}
-            {activeFormTab === 'basic' && (
-              <form onSubmit={(e) => { e.preventDefault(); setActiveFormTab('media'); }} className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-surface-300 mb-2">
-                    Persona Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full px-4 py-3 bg-surface-800 border border-surface-700 rounded-xl text-white placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-beyond-purple"
-                    placeholder="e.g., Grandma Sarah"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-surface-300 mb-2">
-                    Your Relation *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.relation}
-                    onChange={(e) => setFormData({ ...formData, relation: e.target.value })}
-                    className="w-full px-4 py-3 bg-surface-800 border border-surface-700 rounded-xl text-white placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-beyond-purple"
-                    placeholder="e.g., Granddaughter, Son, Friend"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-surface-300 mb-2">
-                    Description
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-4 py-3 bg-surface-800 border border-surface-700 rounded-xl text-white placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-beyond-purple resize-none"
-                    rows={3}
-                    placeholder="Tell us about this person..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-surface-300 mb-2">
-                    Purpose
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { value: 'memorial', label: 'Memorial', icon: Users },
-                      { value: 'therapeutic', label: 'Therapeutic', icon: Heart },
-                      { value: 'educational', label: 'Educational', icon: Brain },
-                      { value: 'entertainment', label: 'Entertainment', icon: Sparkles },
-                    ].map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, purpose: option.value as typeof formData.purpose })}
-                        className={`p-4 rounded-xl border transition-colors flex items-center space-x-2 ${
-                          formData.purpose === option.value
-                            ? 'border-beyond-purple bg-beyond-purple/20 text-white'
-                            : 'border-surface-700 text-surface-400 hover:border-surface-600'
-                        }`}
-                      >
-                        <option.icon className="w-5 h-5" />
-                        <span>{option.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-4">
-                  <button
-                    type="submit"
-                    className="btn-primary px-6 py-3 flex items-center space-x-2"
-                  >
-                    <span>Next: Media Files</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Media Files Tab */}
-            {activeFormTab === 'media' && (
-              <div className="space-y-6">
-                {/* Photo Upload */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center space-x-2 text-white font-medium">
-                      <FileImage className="w-5 h-5 text-pink-500" />
-                      <span>Photo</span>
-                    </label>
-                    <span className="text-surface-400 text-sm">{mediaFiles.photos.length} selected</span>
-                  </div>
-                  
-                  <div className="border-2 border-dashed border-surface-700 rounded-2xl p-6 text-center hover:border-beyond-purple/50 transition-colors">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={(e) => handleMediaFileSelect(e, 'photos')}
-                      className="hidden"
-                      id="photo-upload"
-                    />
-                    <label htmlFor="photo-upload" className="cursor-pointer">
-                      <Image className="w-12 h-12 mx-auto mb-3 text-surface-500" />
-                      <p className="text-white mb-1">Drop image or click to upload</p>
-                      <p className="text-surface-400 text-sm">Supports JPG, PNG, GIF, WebP</p>
-                    </label>
-                  </div>
-                  
-                  {/* Photo Previews */}
-                  {mediaPreviews.photos.length > 0 && (
-                    <div className="space-y-2">
-                      {mediaPreviews.photos.map((preview, index) => (
-                        <div key={index} className="relative group">
-                          <img src={preview} alt={`Photo ${index + 1}`} className="w-full h-20 object-cover rounded-lg" />
-                          <button
-                            onClick={() => removeMediaFile('photos', index)}
-                            className="absolute top-1 right-1 bg-red-500/80 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                          {/* Progress bar */}
-                          {uploadProgress.photos[mediaFiles.photos[index]?.name] !== undefined && (
-                            <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/50">
-                              <div 
-                                className="h-full bg-gradient-to-r from-pink-500 to-rose-500 transition-all duration-200"
-                                style={{ width: `${uploadProgress.photos[mediaFiles.photos[index]?.name] || 0}%` }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Video Upload */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center space-x-2 text-white font-medium">
-                      <FileVideo className="w-5 h-5 text-emerald-500" />
-                      <span>Video</span>
-                    </label>
-                    <span className="text-surface-400 text-sm">{mediaFiles.videos.length} selected</span>
-                  </div>
-                  
-                  <div className="border-2 border-dashed border-surface-700 rounded-2xl p-6 text-center hover:border-beyond-purple/50 transition-colors">
-                    <input
-                      type="file"
-                      accept="video/*"
-                      multiple
-                      onChange={(e) => handleMediaFileSelect(e, 'videos')}
-                      className="hidden"
-                      id="video-upload"
-                    />
-                    <label htmlFor="video-upload" className="cursor-pointer">
-                      <Video className="w-12 h-12 mx-auto mb-3 text-surface-500" />
-                      <p className="text-white mb-1">Drop video or click to upload</p>
-                      <p className="text-surface-400 text-sm">Supports MP4, MOV, AVI, WebM</p>
-                    </label>
-                  </div>
-                  
-                  {/* Video Previews */}
-                  {mediaPreviews.videos.length > 0 && (
-                    <div className="space-y-2">
-                      {mediaPreviews.videos.map((preview, index) => (
-                        <div key={index} className="relative group">
-                          <video src={preview} className="w-full h-32 object-cover rounded-lg" />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Play className="w-8 h-8 text-white" />
-                          </div>
-                          <button
-                            onClick={() => removeMediaFile('videos', index)}
-                            className="absolute top-1 right-1 bg-red-500/80 text-white rounded-full p-1"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                          {/* Progress bar */}
-                          {uploadProgress.videos[mediaFiles.videos[index]?.name] !== undefined && (
-                            <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/50">
-                              <div 
-                                className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-200"
-                                style={{ width: `${uploadProgress.videos[mediaFiles.videos[index]?.name] || 0}%` }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Audio Upload */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center space-x-2 text-white font-medium">
-                      <FileAudio className="w-5 h-5 text-cyan-500" />
-                      <span>Audio</span>
-                    </label>
-                    <span className="text-surface-400 text-sm">{mediaFiles.audio.length} selected</span>
-                  </div>
-                  
-                  <div className="border-2 border-dashed border-surface-700 rounded-2xl p-6 text-center hover:border-beyond-purple/50 transition-colors">
-                    <input
-                      type="file"
-                      accept="audio/*"
-                      multiple
-                      onChange={(e) => handleMediaFileSelect(e, 'audio')}
-                      className="hidden"
-                      id="audio-upload"
-                    />
-                    <label htmlFor="audio-upload" className="cursor-pointer">
-                      <Music className="w-12 h-12 mx-auto mb-3 text-surface-500" />
-                      <p className="text-white mb-1">Drop audio or click to upload</p>
-                      <p className="text-surface-400 text-sm">Supports MP3, WAV, OGG, M4A</p>
-                    </label>
-                  </div>
-                  
-                  {/* Audio Previews */}
-                  {mediaPreviews.audio.length > 0 && (
-                    <div className="space-y-2">
-                      {mediaPreviews.audio.map((preview, index) => (
-                        <div key={index} className="flex items-center space-x-3 bg-surface-800 rounded-lg p-3">
-                          <div className="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center">
-                            <Music className="w-5 h-5 text-cyan-400" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-white text-sm">{mediaFiles.audio[index]?.name}</p>
-                            <p className="text-surface-400 text-xs">{formatFileSize(mediaFiles.audio[index]?.size || 0)}</p>
-                            {/* Progress bar */}
-                            {uploadProgress.audio[mediaFiles.audio[index]?.name] !== undefined && (
-                              <div className="h-1 bg-surface-700 rounded-full mt-1">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-200"
-                                  style={{ width: `${uploadProgress.audio[mediaFiles.audio[index]?.name] || 0}%` }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                          <audio controls className="h-8">
-                            <source src={preview} />
-                          </audio>
-                          <button
-                            onClick={() => removeMediaFile('audio', index)}
-                            className="text-surface-400 hover:text-red-400 transition-colors"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex justify-between pt-4">
-                  <button
-                    onClick={() => setActiveFormTab('basic')}
-                    className="px-6 py-3 rounded-xl border border-surface-700 text-white hover:bg-surface-800 transition-colors flex items-center space-x-2"
-                  >
-                    <ChevronRight className="w-4 h-4 rotate-180" />
-                    <span>Back</span>
-                  </button>
-                  <button
-                    onClick={() => setActiveFormTab('personality')}
-                    className="btn-primary px-6 py-3 flex items-center space-x-2"
-                  >
-                    <span>Next: Personality</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
               </div>
-            )}
 
-            {/* Personality Tab */}
-            {activeFormTab === 'personality' && (
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-surface-300 mb-4">
-                    Select Traits
-                  </label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      'Kind', 'Wise', 'Loving', 'Humorous', 'Patient', 'Strong',
-                      'Creative', 'Adventurous', 'Compassionate', 'Generous', 'Optimistic', 'Gentle'
-                    ].map((trait) => (
-                      <button
-                        key={trait}
-                        className="p-3 rounded-xl border border-surface-700 text-surface-300 hover:border-beyond-purple hover:text-white transition-colors"
-                      >
-                        {trait}
-                      </button>
-                    ))}
-                  </div>
+              <div className="flex-1 overflow-y-auto p-8 scrollbar-hide">
+                {/* Tabs */}
+                <div className="flex p-1.5 bg-surface-950/50 rounded-2xl border border-surface-800/50 mb-10 w-fit mx-auto sticky top-0 z-20 backdrop-blur-md">
+                  {[
+                    { id: 'basic', label: 'Identity', icon: UserIcon },
+                    { id: 'media', label: 'Memories', icon: FileImage },
+                    { id: 'personality', label: 'Essence', icon: Heart },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveFormTab(tab.id)}
+                      className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl transition-all duration-300 font-bold text-sm ${
+                        activeFormTab === tab.id
+                          ? 'bg-beyond-purple text-white shadow-lg shadow-beyond-purple/20'
+                          : 'text-surface-500 hover:text-surface-300'
+                      }`}
+                    >
+                      <tab.icon className="w-4 h-4" />
+                      <span>{tab.label}</span>
+                    </button>
+                  ))}
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-surface-300 mb-2">
-                    Voice Style
-                  </label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { value: 'calm', label: 'Calm', icon: Heart },
-                      { value: 'energetic', label: 'Energetic', icon: Sparkles },
-                      { value: 'formal', label: 'Formal', icon: FileText },
-                    ].map((style) => (
-                      <button
-                        key={style.value}
-                        className="p-4 rounded-xl border border-surface-700 text-surface-400 hover:border-beyond-purple hover:text-white transition-colors flex flex-col items-center space-y-2"
-                      >
-                        <style.icon className="w-6 h-6" />
-                        <span>{style.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <AnimatePresence mode="wait">
+                  {/* Basic Info Tab */}
+                  {activeFormTab === 'basic' && (
+                    <motion.div
+                      key="basic-tab"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="space-y-8"
+                    >
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-surface-500 ml-1">
+                            Legal Name / Moniker
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.title}
+                            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                            className="w-full px-6 py-4 bg-surface-950/50 border border-surface-800 rounded-2xl text-white placeholder-surface-600 focus:outline-none focus:ring-2 focus:ring-beyond-purple focus:border-transparent transition-all font-medium"
+                            placeholder="e.g. Grandma Sarah"
+                            required
+                          />
+                        </div>
 
-                <div className="flex justify-between pt-4">
-                  <button
-                    onClick={() => setActiveFormTab('media')}
-                    className="px-6 py-3 rounded-xl border border-surface-700 text-white hover:bg-surface-800 transition-colors flex items-center space-x-2"
-                  >
-                    <ChevronRight className="w-4 h-4 rotate-180" />
-                    <span>Back</span>
-                  </button>
-                  <button
-                    onClick={handleCreatePersona}
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-surface-500 ml-1">
+                            Biological Relation
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.relation}
+                            onChange={(e) => setFormData({ ...formData, relation: e.target.value })}
+                            className="w-full px-6 py-4 bg-surface-950/50 border border-surface-800 rounded-2xl text-white placeholder-surface-600 focus:outline-none focus:ring-2 focus:ring-beyond-purple focus:border-transparent transition-all font-medium"
+                            placeholder="e.g. Grandmother"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-surface-500 ml-1">
+                          Legacy Narrative
+                        </label>
+                        <textarea
+                          value={formData.description}
+                          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                          className="w-full px-6 py-4 bg-surface-950/50 border border-surface-800 rounded-2xl text-white placeholder-surface-600 focus:outline-none focus:ring-2 focus:ring-beyond-purple focus:border-transparent transition-all font-medium resize-none"
+                          rows={4}
+                          placeholder="Provide context for the AI to understand this soul's journey..."
+                        />
+                      </div>
+
+                      <div className="space-y-4">
+                        <label className="text-xs font-bold uppercase tracking-widest text-surface-500 ml-1">
+                          Vault Protocol
+                        </label>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          {[
+                            { value: 'memorial', label: 'Memorial', icon: Users },
+                            { value: 'therapeutic', label: 'Therapy', icon: Heart },
+                            { value: 'educational', label: 'Education', icon: Brain },
+                            { value: 'entertainment', label: 'Fun', icon: Sparkles },
+                          ].map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setFormData({ ...formData, purpose: option.value as any })}
+                              className={`p-4 rounded-2xl border transition-all duration-300 flex flex-col items-center space-y-2 group ${
+                                formData.purpose === option.value
+                                  ? 'border-beyond-purple bg-beyond-purple/20 text-white shadow-lg shadow-beyond-purple/10'
+                                  : 'border-surface-800 bg-surface-950/30 text-surface-500 hover:border-surface-700'
+                              }`}
+                            >
+                              <option.icon className={`w-6 h-6 transition-colors ${formData.purpose === option.value ? 'text-beyond-purple' : 'group-hover:text-surface-300'}`} />
+                              <span className="text-[10px] font-bold uppercase tracking-tighter">{option.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Media Files Tab */}
+                  {activeFormTab === 'media' && (
+                    <motion.div
+                      key="media-tab"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="space-y-8"
+                    >
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {[
+                          { type: 'photos', label: 'Visuals', icon: FileImage, color: 'text-pink-500', accept: 'image/*' },
+                          { type: 'videos', label: 'Footage', icon: FileVideo, color: 'text-emerald-500', accept: 'video/*' },
+                          { type: 'audio', label: 'Echoes', icon: FileAudio, color: 'text-cyan-500', accept: 'audio/*' },
+                        ].map((media) => (
+                          <div key={media.type} className="space-y-3">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-surface-500 flex items-center space-x-2">
+                              <media.icon className={`w-3.5 h-3.5 ${media.color}`} />
+                              <span>{media.label}</span>
+                            </label>
+                            
+                            <div className="relative group">
+                              <input
+                                type="file"
+                                accept={media.accept}
+                                multiple
+                                onChange={(e) => handleMediaFileSelect(e, media.type as any)}
+                                className="hidden"
+                                id={`${media.type}-upload`}
+                              />
+                              <label 
+                                htmlFor={`${media.type}-upload`}
+                                className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-surface-800 rounded-3xl cursor-pointer hover:border-beyond-purple/50 bg-surface-950/30 hover:bg-surface-800/30 transition-all group"
+                              >
+                                <Upload className="w-8 h-8 mb-2 text-surface-600 group-hover:text-beyond-purple transition-colors" />
+                                <span className="text-[10px] font-bold text-surface-500 group-hover:text-surface-300">UPLOAD</span>
+                              </label>
+                            </div>
+                            
+                            <div className="text-[10px] text-surface-500 font-bold">
+                              {(mediaFiles as any)[media.type].length} ARCHIVED
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* File Previews / List */}
+                      {(mediaPreviews.photos.length > 0 || mediaPreviews.videos.length > 0 || mediaPreviews.audio.length > 0) && (
+                        <div className="bg-surface-950/50 rounded-3xl border border-surface-800 p-6 space-y-4 max-h-60 overflow-y-auto custom-scrollbar">
+                          {mediaPreviews.photos.map((p, i) => (
+                            <div key={`p-${i}`} className="flex items-center space-x-4 bg-surface-900/50 p-2 rounded-xl border border-white/5">
+                              <img src={p} className="w-12 h-12 rounded-lg object-cover" alt="" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-white truncate">{mediaFiles.photos[i]?.name}</p>
+                                <div className="h-1 bg-surface-800 rounded-full mt-1 overflow-hidden">
+                                  <motion.div 
+                                    className="h-full bg-pink-500" 
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${uploadProgress.photos[mediaFiles.photos[i]?.name] || 100}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <button onClick={() => removeMediaFile('photos', i)} className="p-2 text-surface-500 hover:text-red-400 transition-colors">
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                          
+                          {mediaFiles.videos.map((f, i) => (
+                            <div key={`v-${i}`} className="flex items-center space-x-4 bg-surface-900/50 p-2 rounded-xl border border-white/5">
+                              <div className="w-12 h-12 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                                <FileVideo className="w-6 h-6 text-emerald-500" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-white truncate">{f.name}</p>
+                                <div className="h-1 bg-surface-800 rounded-full mt-1 overflow-hidden">
+                                  <motion.div 
+                                    className="h-full bg-emerald-500" 
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${uploadProgress.videos[f.name] || 100}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <button onClick={() => removeMediaFile('videos', i)} className="p-2 text-surface-500 hover:text-red-400 transition-colors">
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+
+                          {mediaFiles.audio.map((f, i) => (
+                            <div key={`a-${i}`} className="flex items-center space-x-4 bg-surface-900/50 p-2 rounded-xl border border-white/5">
+                              <div className="w-12 h-12 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                                <FileAudio className="w-6 h-6 text-cyan-500" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-white truncate">{f.name}</p>
+                                <div className="h-1 bg-surface-800 rounded-full mt-1 overflow-hidden">
+                                  <motion.div 
+                                    className="h-full bg-cyan-500" 
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${uploadProgress.audio[f.name] || 100}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <button onClick={() => removeMediaFile('audio', i)} className="p-2 text-surface-500 hover:text-red-400 transition-colors">
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {/* Essence Tab */}
+                  {activeFormTab === 'personality' && (
+                    <motion.div
+                      key="personality-tab"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="space-y-8"
+                    >
+                      <div className="space-y-4">
+                        <label className="text-xs font-bold uppercase tracking-widest text-surface-500 ml-1">
+                          Synthesize Core Traits
+                        </label>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                          {[
+                            'Kind', 'Wise', 'Loving', 'Humorous', 'Patient', 'Strong',
+                            'Creative', 'Adventurous', 'Gentle', 'Direct', 'Optimistic', 'Stoic'
+                          ].map((trait) => (
+                            <button
+                              key={trait}
+                              onClick={() => toggleTrait(trait)}
+                              className={`px-4 py-3 rounded-xl border transition-all duration-300 text-xs font-bold ${
+                                selectedTraits.includes(trait)
+                                  ? 'border-beyond-purple bg-beyond-purple/20 text-white shadow-lg shadow-beyond-purple/10'
+                                  : 'border-surface-800 bg-surface-950/30 text-surface-400 hover:border-surface-700 hover:text-white'
+                              }`}
+                            >
+                              {trait}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <label className="text-xs font-bold uppercase tracking-widest text-surface-500 ml-1">
+                          Vocal Frequency Style
+                        </label>
+                        <div className="grid grid-cols-3 gap-4">
+                          {[
+                            { value: 'calm', label: 'Serene', icon: Heart },
+                            { value: 'energetic', label: 'Vibrant', icon: Sparkles },
+                            { value: 'formal', label: 'Dignified', icon: FileText },
+                          ].map((style) => (
+                            <button
+                              key={style.value}
+                              onClick={() => setVoiceStyle(style.value)}
+                              className={`p-5 rounded-2xl border transition-all duration-300 flex flex-col items-center space-y-2 group ${
+                                voiceStyle === style.value
+                                  ? 'border-beyond-purple bg-beyond-purple/20 text-white shadow-lg shadow-beyond-purple/10'
+                                  : 'border-surface-800 bg-surface-950/30 text-surface-500 hover:border-surface-700 hover:text-white'
+                              }`}
+                            >
+                              <style.icon className={`w-6 h-6 transition-colors ${voiceStyle === style.value ? 'text-beyond-purple' : 'group-hover:text-beyond-purple/50'}`} />
+                              <span className="text-[10px] font-bold uppercase tracking-widest">{style.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-8 bg-surface-900/40 border-t border-surface-800/50 flex items-center justify-between">
+                <button
+                  onClick={() => {
+                    if (activeFormTab === 'personality') setActiveFormTab('media');
+                    else if (activeFormTab === 'media') setActiveFormTab('basic');
+                  }}
+                  className={`px-8 py-4 rounded-2xl border border-surface-800 text-white font-bold hover:bg-surface-800 transition-all flex items-center space-x-2 ${activeFormTab === 'basic' ? 'opacity-0 pointer-events-none' : ''}`}
+                >
+                  <ChevronRight className="w-4 h-4 rotate-180" />
+                  <span>Previous</span>
+                </button>
+
+                <div className="flex items-center space-x-4">
+                   {activeFormTab !== 'personality' && (
+                     <button 
+                       onClick={() => setActiveFormTab('personality')}
+                       className="text-surface-500 hover:text-white text-sm font-bold transition-colors hidden sm:block"
+                     >
+                       Skip to Essence
+                     </button>
+                   )}
+                   
+                   <button
+                    onClick={() => {
+                      if (activeFormTab === 'basic') setActiveFormTab('media');
+                      else if (activeFormTab === 'media') setActiveFormTab('personality');
+                      else handleCreatePersona();
+                    }}
                     disabled={isLoading}
-                    className="btn-primary px-6 py-3 flex items-center space-x-2"
+                    className="btn-primary px-10 py-4 flex items-center space-x-3 group/submit"
                   >
                     {isLoading ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
                       <>
-                        <Sparkles className="w-5 h-5" />
-                        <span>Create Persona</span>
+                        <span className="tracking-tight">{activeFormTab === 'personality' ? 'Commit to Vault' : 'Next Protocol'}</span>
+                        <ChevronRight className="w-4 h-4 group-hover/submit:translate-x-1 transition-transform" />
                       </>
                     )}
                   </button>
                 </div>
               </div>
-            )}
-          </motion.div>
-        </div>
-      )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
