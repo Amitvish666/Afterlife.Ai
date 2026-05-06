@@ -27,7 +27,7 @@ function verifyToken(request: NextRequest): { userId: string; email: string } | 
   }
 }
 
-// Get AI response from Ollama
+// Get AI response from Ollama, with OpenAI fallback
 async function getAIResponse(
   message: string,
   history: { role: string; content: string }[],
@@ -86,7 +86,8 @@ Remember: You are talking to someone you care about. Be present and loving.`;
         model: model,
         messages,
         stream: false
-      })
+      }),
+      signal: AbortSignal.timeout(4000) // 4 seconds timeout for fast fallback
     });
 
     if (response.ok) {
@@ -99,6 +100,40 @@ Remember: You are talking to someone you care about. Be present and loving.`;
     }
   } catch (error) {
     console.error('[AI] Ollama API exception:', error);
+  }
+
+  // Fallback to OpenAI if Ollama fails/is unavailable and OPENAI_API_KEY is configured
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (openaiKey) {
+    try {
+      console.log('[AI] Ollama unavailable. Falling back to OpenAI cloud AI...');
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openaiKey}`
+        },
+        body: JSON.stringify({
+          model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+          messages,
+          max_tokens: 150
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content || '';
+        console.log('[AI] OpenAI fallback response received successfully');
+        return { content, provider: 'openai' };
+      } else {
+        const errorText = await response.text();
+        console.error('[AI] OpenAI fallback API error:', response.status, errorText);
+      }
+    } catch (openaiError) {
+      console.error('[AI] OpenAI fallback API exception:', openaiError);
+    }
+  } else {
+    console.log('[AI] No OPENAI_API_KEY found for fallback.');
   }
 
   return null;

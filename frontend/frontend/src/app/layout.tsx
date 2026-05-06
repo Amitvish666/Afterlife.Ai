@@ -5,8 +5,8 @@ import '../styles/globals.css';
 export const metadata: Metadata = {
   metadataBase: new URL('https://hqtalsezrmvfjtlgjrhj.supabase.co'),
   title: {
-    default: 'Beyond Life AI - Preserve Memories, Connect Forever',
-    template: '%s | Beyond Life AI',
+    default: 'Afterlife AI - Preserve Memories, Connect Forever',
+    template: '%s | Afterlife AI',
   },
   description: 'Create AI-powered digital personas from your loved ones\' memories, conversations, and media. Experience meaningful connections that transcend time.',
   keywords: ['AI', 'persona', 'memory', 'digital immortality', 'voice cloning', 'avatar', 'chatbot', 'preservation'],
@@ -17,27 +17,27 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://beyondlife.ai',
-    siteName: 'Beyond Life AI',
-    title: 'Beyond Life AI - Preserve Memories, Connect Forever',
+    url: 'https://afterlifeai.com',
+    siteName: 'Afterlife AI',
+    title: 'Afterlife AI - Preserve Memories, Connect Forever',
     description: 'Create AI-powered digital personas from your loved ones\' memories, conversations, and media.',
     images: [
       {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'Beyond Life AI',
+        alt: 'Afterlife AI',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Beyond Life AI - Preserve Memories',
+    title: 'Afterlife AI - Preserve Memories',
     description: 'Create AI-powered digital personas from your loved ones\' memories',
     images: ['/og-image.png'],
   },
   icons: {
-    icon: '/favicon.ico',
+    icon: '/favicon.svg',
     shortcut: '/favicon-16x16.png',
     apple: '/apple-touch-icon.png',
   },

@@ -565,10 +565,10 @@ export default function AvatarPage() {
       <aside className="fixed left-0 top-0 h-full w-64 bg-surface-900/50 backdrop-blur-xl border-r border-surface-800/50 p-4 z-40">
         <div className="flex items-center space-x-2 mb-8 px-2">
           <Link href="/" className="flex items-center space-x-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-beyond-purple to-beyond-pink flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 flex items-center justify-center">
+              <img src="/favicon.svg" alt="Afterlife AI Logo" className="w-10 h-10 object-contain" />
             </div>
-            <span className="text-xl font-bold gradient-text">Beyond Life AI</span>
+            <span className="text-xl font-bold gradient-text">Afterlife AI</span>
           </Link>
         </div>
 

@@ -51,12 +51,12 @@ export default function Navbar() {
           <Link href="/" className="flex items-center space-x-3 group">
             <motion.div 
               whileHover={{ scale: 1.1, rotate: 5 }}
-              className="w-9 h-9 rounded-xl bg-gradient-to-br from-beyond-purple via-beyond-purple/80 to-beyond-pink flex items-center justify-center shadow-[0_0_20px_rgba(139,92,246,0.3)]"
+              className="w-9 h-9 flex items-center justify-center"
             >
-              <Sparkles className="w-4.5 h-4.5 text-white" />
+              <img src="/favicon.svg" alt="Afterlife AI Logo" className="w-9 h-9 object-contain" />
             </motion.div>
             <div className="flex flex-col">
-              <span className="text-base font-bold tracking-tight text-white leading-none">Beyond Life</span>
+              <span className="text-base font-bold tracking-tight text-white leading-none">Afterlife AI</span>
               <span className="text-[9px] font-bold text-beyond-purple uppercase tracking-[0.2em] leading-none mt-1 opacity-80">Intelligence</span>
             </div>
           </Link>

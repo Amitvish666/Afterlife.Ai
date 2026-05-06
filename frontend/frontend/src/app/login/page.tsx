@@ -227,10 +227,10 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           <Link href="/" className="flex items-center space-x-2 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-beyond-purple to-beyond-pink flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 flex items-center justify-center">
+              <img src="/favicon.svg" alt="Afterlife AI Logo" className="w-10 h-10 object-contain" />
             </div>
-            <span className="text-xl font-bold gradient-text">Beyond Life AI</span>
+            <span className="text-xl font-bold gradient-text">Afterlife AI</span>
           </Link>
 
           <h1 className="text-3xl font-bold text-white mb-2">Welcome back</h1>

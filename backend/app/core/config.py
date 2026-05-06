@@ -1,5 +1,5 @@
 """
-Configuration settings for Beyond Life AI
+Configuration settings for Afterlife AI
 """
 
 import os
@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     """Application settings"""
     
     # Application
-    APP_NAME: str = "Beyond Life AI"
+    APP_NAME: str = "Afterlife AI"
     DEBUG: bool = Field(default=False)
     LOG_LEVEL: str = Field(default="INFO")
     API_V1_PREFIX: str = "/api/v1"
@@ -110,8 +110,8 @@ class Settings(BaseSettings):
     ENABLE_ANALYTICS: bool = False
     
     # Legal
-    PRIVACY_POLICY_URL: str = "https://beyondlife.ai/privacy"
-    TERMS_OF_SERVICE_URL: str = "https://beyondlife.ai/terms"
+    PRIVACY_POLICY_URL: str = "https://afterlife.ai/privacy"
+    TERMS_OF_SERVICE_URL: str = "https://afterlife.ai/terms"
     CONSENT_REQUIRED: bool = True
     DATA_RETENTION_DAYS: int = 365
     

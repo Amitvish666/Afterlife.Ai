@@ -1,7 +1,7 @@
 {
-  "name": "beyond-life-ai",
+  "name": "afterlife-ai",
   "version": "1.0.0",
-  "description": "CODEXION's Beyond Life AI - Multimodal Persona Platform",
+  "description": "CODEXION's Afterlife AI - Multimodal Persona Platform",
   "private": true,
   "workspaces": [
     "frontend",

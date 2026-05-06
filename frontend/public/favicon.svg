@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="Afterlife AI">
+  <defs>
+    <linearGradient id="al-flame" x1="32" y1="4" x2="32" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#D8B4FE"/>
+      <stop offset="0.35" stop-color="#A855F7"/>
+      <stop offset="0.72" stop-color="#6D28D9"/>
+      <stop offset="1" stop-color="#2E1065"/>
+    </linearGradient>
+    <radialGradient id="al-glow" cx="32" cy="34" r="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7C3AED" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#0B0618" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="al-silver" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F8FAFC"/>
+      <stop offset="1" stop-color="#94A3B8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded tile background -->
+  <rect x="4" y="4" width="56" height="56" rx="16" fill="#0B0618" stroke="url(#al-silver)" stroke-width="1.5" />
+  <circle cx="32" cy="32" r="24" fill="url(#al-glow)" />
+
+  <!-- A elegant, premium Afterlife flame/infinity icon -->
+  <path d="M32 14C32 14 44 26 44 35C44 41.6274 38.6274 47 32 47C25.3726 47 20 41.6274 20 35C20 26 32 14 32 14Z" fill="url(#al-flame)" />
+  <path d="M32 22C32 22 38 30 38 35C38 38.3137 35.3137 41 32 41C28.6863 41 26 38.3137 26 35C26 30 32 22 32 22Z" fill="#0B0618" opacity="0.3" />
+  <path d="M32 22C32 22 38 30 38 35C38 38.3137 35.3137 41 32 41C28.6863 41 26 38.3137 26 35C26 30 32 22 32 22Z" fill="url(#al-silver)" opacity="0.15" />
+</svg>

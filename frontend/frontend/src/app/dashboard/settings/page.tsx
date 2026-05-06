@@ -86,10 +86,10 @@ function SettingsContent() {
       <aside className="fixed left-0 top-0 h-full w-64 bg-surface-900/50 backdrop-blur-xl border-r border-surface-800/50 p-4">
         <div className="flex items-center space-x-2 mb-8 px-2">
           <button onClick={() => router.push('/dashboard')} className="flex items-center space-x-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-beyond-purple to-beyond-pink flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 flex items-center justify-center">
+              <img src="/favicon.svg" alt="Afterlife AI Logo" className="w-10 h-10 object-contain" />
             </div>
-            <span className="text-xl font-bold gradient-text">Beyond Life AI</span>
+            <span className="text-xl font-bold gradient-text">Afterlife AI</span>
           </button>
         </div>
 
@@ -378,17 +378,17 @@ function SettingsContent() {
                     <div className="prose prose-invert max-w-none">
                       <div className="space-y-4 text-surface-300">
                         <p className="text-sm">
-                          Welcome to Beyond Life AI. By accessing or using our services, you agree to be bound by these Terms of Service.
+                          Welcome to Afterlife AI. By accessing or using our services, you agree to be bound by these Terms of Service.
                         </p>
                         
                         <h3 className="text-lg font-semibold text-white mt-6">1. Acceptance of Terms</h3>
                         <p className="text-sm">
-                          By creating an account or using Beyond Life AI, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service and our Privacy Policy.
+                          By creating an account or using Afterlife AI, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service and our Privacy Policy.
                         </p>
                         
                         <h3 className="text-lg font-semibold text-white mt-6">2. Use of Service</h3>
                         <p className="text-sm">
-                          Beyond Life AI provides an AI-powered platform for creating and interacting with digital personas. You agree to use the service only for lawful purposes and in accordance with these Terms.
+                          Afterlife AI provides an AI-powered platform for creating and interacting with digital personas. You agree to use the service only for lawful purposes and in accordance with these Terms.
                         </p>
                         
                         <h3 className="text-lg font-semibold text-white mt-6">3. User Accounts</h3>
@@ -403,12 +403,12 @@ function SettingsContent() {
                         
                         <h3 className="text-lg font-semibold text-white mt-6">5. Intellectual Property</h3>
                         <p className="text-sm">
-                          All content, features, and functionality of Beyond Life AI are owned by us and are protected by international copyright, trademark, and other intellectual property laws.
+                          All content, features, and functionality of Afterlife AI are owned by us and are protected by international copyright, trademark, and other intellectual property laws.
                         </p>
                         
                         <h3 className="text-lg font-semibold text-white mt-6">6. Limitation of Liability</h3>
                         <p className="text-sm">
-                          Beyond Life AI shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of the service.
+                          Afterlife AI shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of the service.
                         </p>
                         
                         <h3 className="text-lg font-semibold text-white mt-6">7. Changes to Terms</h3>
@@ -418,7 +418,7 @@ function SettingsContent() {
                         
                         <h3 className="text-lg font-semibold text-white mt-6">8. Contact Information</h3>
                         <p className="text-sm">
-                          If you have any questions about these Terms, please contact us at support@beyondlife.ai.
+                          If you have any questions about these Terms, please contact us at support@afterlife.ai.
                         </p>
                       </div>
                     </div>
@@ -439,24 +439,24 @@ function SettingsContent() {
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <a 
-                            href="mailto:support@beyondlife.ai" 
+                            href="mailto:support@afterlife.ai" 
                             className="flex items-center space-x-3 p-4 bg-surface-800/50 rounded-xl hover:bg-surface-800 transition-colors"
                           >
                             <Mail className="w-5 h-5 text-beyond-purple" />
                             <div>
                               <p className="text-white font-medium">Email Support</p>
-                              <p className="text-surface-400 text-sm">support@beyondlife.ai</p>
+                              <p className="text-surface-400 text-sm">support@afterlife.ai</p>
                             </div>
                           </a>
                           
                           <a 
-                            href="mailto:contact@beyondlife.ai" 
+                            href="mailto:contact@afterlife.ai" 
                             className="flex items-center space-x-3 p-4 bg-surface-800/50 rounded-xl hover:bg-surface-800 transition-colors"
                           >
                             <MessageCircle className="w-5 h-5 text-beyond-purple" />
                             <div>
                               <p className="text-white font-medium">General Inquiries</p>
-                              <p className="text-surface-400 text-sm">contact@beyondlife.ai</p>
+                              <p className="text-surface-400 text-sm">contact@afterlife.ai</p>
                             </div>
                           </a>
                         </div>
@@ -543,10 +543,10 @@ function SettingsContent() {
                       <div className="p-6 bg-surface-800/50 rounded-xl">
                         <h3 className="text-lg font-semibold text-white mb-4">Company Information</h3>
                         <div className="space-y-2 text-surface-400 text-sm">
-                          <p><span className="text-white">Company:</span> Beyond Life AI</p>
+                          <p><span className="text-white">Company:</span> Afterlife AI</p>
                           <p><span className="text-white">Headquarters:</span> San Francisco, CA, USA</p>
                           <p><span className="text-white">Founded:</span> 2024</p>
-                          <p><span className="text-white">Website:</span> www.beyondlife.ai</p>
+                          <p><span className="text-white">Website:</span> www.afterlife.ai</p>
                         </div>
                       </div>
                     </div>
@@ -601,7 +601,7 @@ function SettingsContent() {
                         </p>
                         <div className="flex flex-wrap gap-3">
                           <a 
-                            href="mailto:support@beyondlife.ai" 
+                            href="mailto:support@afterlife.ai" 
                             className="flex items-center space-x-2 px-4 py-2 bg-beyond-purple/30 hover:bg-beyond-purple/40 rounded-lg text-white text-sm transition-colors"
                           >
                             <Mail className="w-4 h-4" />
@@ -619,7 +619,7 @@ function SettingsContent() {
                       {/* Additional Resources */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <a 
-                          href="https://docs.beyondlife.ai" 
+                          href="https://docs.afterlife.ai" 
                           target="_blank"
                           rel="noopener noreferrer"
                           className="p-4 bg-surface-800/50 rounded-xl hover:bg-surface-800 transition-colors group"

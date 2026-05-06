@@ -159,11 +159,11 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
             <Link href="/" className="flex items-center space-x-3 group">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-beyond-purple to-beyond-pink flex items-center justify-center shadow-[0_0_20px_rgba(139,92,246,0.35)] group-hover:scale-105 transition-transform duration-300">
-                <Sparkles className="w-6 h-6 text-white animate-pulse" />
+              <div className="w-11 h-11 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                <img src="/favicon.svg" alt="Afterlife AI Logo" className="w-11 h-11 object-contain" />
               </div>
               <div className="flex flex-col">
-                <span className="text-xl font-extrabold tracking-wider gradient-text font-display">BEYOND LIFE</span>
+                <span className="text-xl font-extrabold tracking-wider gradient-text font-display">AFTERLIFE AI</span>
                 <span className="text-[10px] tracking-[0.25em] text-surface-400 font-mono font-medium -mt-1 group-hover:text-beyond-pink transition-colors">AI MEMORIALS</span>
               </div>
             </Link>
@@ -535,11 +535,11 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center space-x-3 group">
-              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-beyond-purple to-beyond-pink flex items-center justify-center shadow-[0_0_15px_rgba(139,92,246,0.25)]">
-                <Sparkles className="w-5 h-5 text-white" />
+              <div className="w-9 h-9 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                <img src="/favicon.svg" alt="Afterlife AI Logo" className="w-9 h-9 object-contain" />
               </div>
               <div className="text-left">
-                <span className="font-extrabold text-sm tracking-widest text-white block">BEYOND LIFE AI</span>
+                <span className="font-extrabold text-sm tracking-widest text-white block">AFTERLIFE AI</span>
                 <span className="text-[9px] font-mono tracking-widest text-surface-500 font-medium -mt-1 block">DEVELOPED BY CODEXION</span>
               </div>
             </div>
@@ -583,7 +583,7 @@ export default function HomePage() {
                 width="100%" 
                 height="100%" 
                 src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1" 
-                title="Beyond Life AI Demo"
+                title="Afterlife AI Demo"
                 frameBorder="0" 
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                 allowFullScreen
