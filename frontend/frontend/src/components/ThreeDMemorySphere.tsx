@@ -171,6 +171,7 @@ export default function ThreeDMemorySphere() {
       // 3. Render connections (lines) between neighboring points
       // Closer points in 3D get brighter glowing lines
       const maxDistance = sphereRadius * 0.78;
+      const maxDistanceSq = maxDistance * maxDistance;
       
       ctx.lineWidth = 0.8;
       for (let i = 0; i < projectedPoints.length; i++) {
@@ -178,13 +179,14 @@ export default function ThreeDMemorySphere() {
           const p1 = points[i];
           const p2 = points[j];
 
-          // Compute 3D Euclidean distance
+          // Compute squared 3D distance first to avoid heavy Math.sqrt calls
           const dx = p1.x - p2.x;
           const dy = p1.y - p2.y;
           const dz = p1.z - p2.z;
-          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          const distSq = dx * dx + dy * dy + dz * dz;
 
-          if (dist < maxDistance) {
+          if (distSq < maxDistanceSq) {
+            const dist = Math.sqrt(distSq);
             const proj1 = projectedPoints[i];
             const proj2 = projectedPoints[j];
 
@@ -198,14 +200,7 @@ export default function ThreeDMemorySphere() {
             const opacity = distRatio * depthRatio * 0.32;
 
             if (opacity > 0.01) {
-              const grad = ctx.createLinearGradient(
-                proj1.screenX, proj1.screenY,
-                proj2.screenX, proj2.screenY
-              );
-              grad.addColorStop(0, `rgba(${proj1.color}, ${opacity})`);
-              grad.addColorStop(1, `rgba(${proj2.color}, ${opacity})`);
-
-              ctx.strokeStyle = grad;
+              ctx.strokeStyle = `rgba(${proj1.color}, ${opacity})`;
               ctx.beginPath();
               ctx.moveTo(proj1.screenX, proj1.screenY);
               ctx.lineTo(proj2.screenX, proj2.screenY);
