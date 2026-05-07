@@ -155,72 +155,7 @@ export default function HomePage() {
       <div className="absolute bottom-[20vh] left-[-10vw] w-[45vw] h-[45vw] rounded-full bg-beyond-blue/5 blur-[120px] pointer-events-none -z-10" />
 
       {/* Header Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-surface-950/45 backdrop-blur-xl border-b border-surface-900/65">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20">
-            <Link href="/" className="flex items-center space-x-3 group">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-beyond-purple to-beyond-pink flex items-center justify-center shadow-[0_0_20px_rgba(139,92,246,0.35)] group-hover:scale-105 transition-transform duration-300">
-                <Sparkles className="w-6 h-6 text-white animate-pulse" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xl font-extrabold tracking-wider gradient-text font-display">BEYOND LIFE</span>
-                <span className="text-[10px] tracking-[0.25em] text-surface-400 font-mono font-medium -mt-1 group-hover:text-beyond-pink transition-colors">AI MEMORIALS</span>
-              </div>
-            </Link>
-            
-            <div className="hidden md:flex items-center space-x-10">
-              <Link href="#features" className="text-sm font-semibold tracking-wide text-surface-300 hover:text-beyond-purple transition-colors duration-200">
-                Capabilities
-              </Link>
-              <Link href="#how-it-works" className="text-sm font-semibold tracking-wide text-surface-300 hover:text-beyond-pink transition-colors duration-200">
-                The Process
-              </Link>
-              <Link href="#pricing" className="text-sm font-semibold tracking-wide text-surface-300 hover:text-beyond-cyan transition-colors duration-200">
-                Ethical Safeguards
-              </Link>
-              
-              {isAuthenticated ? (
-                <div className="flex items-center space-x-5 pl-4 border-l border-surface-800">
-                  <Link 
-                    href="/dashboard" 
-                    className="flex items-center space-x-3 px-4 py-2 rounded-xl bg-surface-900/60 border border-surface-800/80 hover:border-beyond-purple/40 transition-all duration-300 hover:shadow-[0_0_15px_rgba(139,92,246,0.15)]"
-                  >
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-beyond-purple to-beyond-pink flex items-center justify-center p-0.5">
-                      {user?.avatar ? (
-                        <img src={user.avatar} alt={user.name} className="w-full h-full rounded-full object-cover" />
-                      ) : (
-                        <span className="text-white text-xs font-bold">
-                          {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs font-bold text-white tracking-wide">{user?.name || 'Dashboard'}</span>
-                  </Link>
-                  <button 
-                    onClick={handleLogout}
-                    className="p-2 rounded-xl text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200"
-                    title="Sign Out"
-                  >
-                    <LogOut className="w-5 h-5" />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center space-x-6 pl-4 border-l border-surface-800">
-                  <Link href="/login" className="text-sm font-semibold tracking-wide text-surface-300 hover:text-white transition-colors duration-200">
-                    Sign In
-                  </Link>
-                  <button 
-                    onClick={() => router.push('/login')}
-                    className="btn-primary px-5 py-2.5 text-xs tracking-wider uppercase sweep-glow"
-                  >
-                    Get Started Free
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* Hero Section */}
       <section className="relative pt-36 md:pt-48 pb-24 overflow-hidden z-10">

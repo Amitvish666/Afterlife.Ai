@@ -160,10 +160,10 @@ export default function HomePage() {
           <div className="flex items-center justify-between h-20">
             <Link href="/" className="flex items-center space-x-3 group">
               <div className="w-11 h-11 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                <img src="/favicon.svg" alt="Afterlife AI Logo" className="w-11 h-11 object-contain" />
+                <img src="/favicon.svg" alt="Beyond Life AI Logo" className="w-11 h-11 object-contain" />
               </div>
               <div className="flex flex-col">
-                <span className="text-xl font-extrabold tracking-wider gradient-text font-display">AFTERLIFE AI</span>
+                <span className="text-xl font-extrabold tracking-wider gradient-text font-display uppercase">Beyond Life AI</span>
                 <span className="text-[10px] tracking-[0.25em] text-surface-400 font-mono font-medium -mt-1 group-hover:text-beyond-pink transition-colors">AI MEMORIALS</span>
               </div>
             </Link>
@@ -536,11 +536,11 @@ export default function HomePage() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center space-x-3 group">
               <div className="w-9 h-9 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                <img src="/favicon.svg" alt="Afterlife AI Logo" className="w-9 h-9 object-contain" />
+                <img src="/favicon.svg" alt="Beyond Life AI Logo" className="w-9 h-9 object-contain" />
               </div>
               <div className="text-left">
-                <span className="font-extrabold text-sm tracking-widest text-white block">AFTERLIFE AI</span>
-                <span className="text-[9px] font-mono tracking-widest text-surface-500 font-medium -mt-1 block">DEVELOPED BY CODEXION</span>
+                <span className="font-extrabold text-sm tracking-widest text-white block uppercase">Beyond Life AI</span>
+                <span className="text-[9px] font-mono tracking-widest text-surface-500 font-medium -mt-1 block uppercase">Developed by Codexion</span>
               </div>
             </div>
             
