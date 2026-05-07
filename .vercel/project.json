@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_U4QdjdmHS66Gjec2jUyGj7gsAL91",
+  "orgId": "team_BcDaWvUjKQX42hMqwWk66RR2",
+  "projectName": "afterlifeai",
+  "settings": {
+    "createdAt": 1778097780340,
+    "framework": "nextjs",
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}
