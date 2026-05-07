@@ -1,5 +1,3 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd frontend/frontend && npm run build",
-  "outputDirectory": "frontend/frontend/.next"
+  "$schema": "https://openapi.vercel.sh/vercel.json"
 }
