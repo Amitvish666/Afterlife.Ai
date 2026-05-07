@@ -1,0 +1,30 @@
+# Ignore heavy assets/archives
+*.rar
+*.zip
+*.tar.gz
+
+# Ignore local database/storage data
+postgres_data/
+minio_data/
+redis_data/
+
+# Ignore backend
+backend/
+
+# Ignore dependencies and build output
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Ignore local IDE and VS Code settings
+.vscode/
+.idea/
+
+# Ignore documentation
+docs/
+README.md
+
+# Ignore nested recursive folder
+New folder (4)/

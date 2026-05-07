@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useRef, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { 
@@ -23,11 +25,11 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import dynamic from 'next/dynamic';
+import nextDynamic from 'next/dynamic';
 import type { Emotion } from '@/components/AvatarCanvas';
 
 // Dynamic import for AvatarCanvas (SSR disabled - uses browser APIs)
-const AvatarCanvas = dynamic(() => import('@/components/AvatarCanvas'), {
+const AvatarCanvas = nextDynamic(() => import('@/components/AvatarCanvas'), {
   ssr: false,
   loading: () => (
     <div className="w-full h-full min-h-[400px] flex items-center justify-center bg-surface-900/50 rounded-2xl">
