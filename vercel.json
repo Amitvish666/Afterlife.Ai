@@ -1,3 +1,11 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "buildCommand": "cd frontend/frontend && npm install --legacy-peer-deps && npm run build",
+  "outputDirectory": "frontend/frontend/.next",
+  "installCommand": "cd frontend/frontend && npm install --legacy-peer-deps",
+  "framework": "nextjs",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
+  ]
 }
