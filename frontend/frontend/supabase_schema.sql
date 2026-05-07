@@ -66,6 +66,15 @@ CREATE TABLE memories (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Messages table
+CREATE TABLE messages (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+  role TEXT NOT NULL, -- 'user' or 'assistant'
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- =============================================
 -- Disable RLS (using custom JWT auth, server-side only)
 -- =============================================
@@ -74,6 +83,7 @@ ALTER TABLE personas DISABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks DISABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_sessions DISABLE ROW LEVEL SECURITY;
 ALTER TABLE memories DISABLE ROW LEVEL SECURITY;
+ALTER TABLE messages DISABLE ROW LEVEL SECURITY;
 
 -- =============================================
 -- Performance indexes
@@ -83,4 +93,5 @@ CREATE INDEX idx_tasks_persona_id ON tasks(persona_id);
 CREATE INDEX idx_chat_sessions_persona_id ON chat_sessions(persona_id);
 CREATE INDEX idx_chat_sessions_user_id ON chat_sessions(user_id);
 CREATE INDEX idx_memories_persona_id ON memories(persona_id);
+CREATE INDEX idx_messages_session_id ON messages(session_id);
 CREATE INDEX idx_app_users_email ON app_users(email);

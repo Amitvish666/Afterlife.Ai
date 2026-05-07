@@ -418,9 +418,32 @@ export default function ChatsPage() {
     }
   };
 
+  const loadMessages = async (personaId: string, sessionId: string) => {
+    setIsLoading(true);
+    try {
+      const response = await apiClient.listMessages(personaId, sessionId);
+      const data = response.data as any;
+      if (data.success && data.messages) {
+        const mappedMessages: Message[] = data.messages.map((m: any) => ({
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.timestamp)
+        }));
+        setMessages(mappedMessages);
+      }
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+      toast.error('Failed to load chat history');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSelectSession = (sessionId: string) => {
     setSelectedSessionId(sessionId);
-    setMessages([]);
+    if (selectedPersonaId) {
+      loadMessages(selectedPersonaId, sessionId);
+    }
   };
 
   const handleCreateSession = async () => {

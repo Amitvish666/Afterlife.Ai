@@ -72,6 +72,14 @@ export interface Memory {
   created_at: string;
 }
 
+export interface Message {
+  id: string;
+  session_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
+}
+
 // ============================================================
 // Password helpers
 // ============================================================
@@ -151,6 +159,16 @@ function rowToMemory(row: any): Memory {
     content: row.content,
     type: row.type,
     importance: row.importance,
+    created_at: row.created_at,
+  };
+}
+
+function rowToMessage(row: any): Message {
+  return {
+    id: row.id,
+    session_id: row.session_id,
+    role: row.role,
+    content: row.content,
     created_at: row.created_at,
   };
 }
@@ -515,6 +533,40 @@ export async function deleteMemory(memoryId: string): Promise<boolean> {
 }
 
 // ============================================================
+// Message Operations
+// ============================================================
+
+export async function getMessagesForSession(sessionId: string): Promise<Message[]> {
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from('messages')
+    .select('*')
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: true });
+  if (error) {
+    console.error('[DB] getMessagesForSession:', error.message);
+    return [];
+  }
+  return (data || []).map(rowToMessage);
+}
+
+export async function addMessage(message: Message): Promise<Message> {
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from('messages')
+    .insert({
+      id: message.id,
+      session_id: message.session_id,
+      role: message.role,
+      content: message.content,
+      created_at: message.created_at,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(`[DB] addMessage failed: ${error.message}`);
+  return rowToMessage(data);
+}
+
 // Legacy compatibility shim
 // Some routes still call persistData() — make it a no-op
 // ============================================================
@@ -522,10 +574,3 @@ export function persistData(): void {
   // No-op: Supabase writes are immediate
 }
 
-// Legacy in-memory refs used by old code — no longer needed
-// kept as empty objects to avoid import errors during migration
-export const usersDb: Record<string, any> = {};
-export const personasDb: Record<string, any> = {};
-export const tasksDb: Record<string, any> = {};
-export const sessionsDb: Record<string, any> = {};
-export const memoriesDb: Record<string, any> = {};

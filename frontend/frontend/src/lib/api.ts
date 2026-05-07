@@ -177,6 +177,9 @@ export const apiClient = {
   deleteSession: (personaId: string, sessionId: string) =>
     api.delete<ApiResponse<unknown>>(`/personas/${personaId}/sessions/${sessionId}`),
   
+  listMessages: (personaId: string, sessionId: string) =>
+    api.get<ApiResponse<unknown[]>>(`/personas/${personaId}/sessions/${sessionId}/messages`),
+
   sendMessage: (personaId: string, sessionId: string, data: { 
     message: string; 
     conversation_history?: any[];
