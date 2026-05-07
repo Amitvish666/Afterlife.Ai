@@ -40,6 +40,7 @@ import toast from 'react-hot-toast';
 import { apiClient } from '@/lib/api';
 import { useAuthStore, usePersonaStore } from '@/store';
 import { cn } from '@/lib/utils';
+import ThreeDMemorySphere from '@/components/ThreeDMemorySphere';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -74,7 +75,9 @@ export default function ChatsPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(searchParams.get('persona_id'));
+  const personaIdFromUrl = searchParams.get('persona_id') || searchParams.get('persona');
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(personaIdFromUrl);
+  const isSpecialPersona = selectedPersonaId === '1773932466715-7szyfnz60';
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   
   // Handle message from URL (voice input)
@@ -88,8 +91,8 @@ export default function ChatsPage() {
     }
   }, [searchParams, router]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [showSessions, setShowSessions] = useState(true);
-  const [showJobs, setShowJobs] = useState(true);
+  const [showSessions, setShowSessions] = useState(!isSpecialPersona);
+  const [showJobs, setShowJobs] = useState(!isSpecialPersona);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -109,6 +112,17 @@ export default function ChatsPage() {
       setInitialized(true);
     }
   }, []);
+
+  // Sync selectedPersonaId with URL parameter on mount/update
+  useEffect(() => {
+    if (personaIdFromUrl) {
+      setSelectedPersonaId(personaIdFromUrl);
+      const persona = personas.find(p => p.id === personaIdFromUrl);
+      if (persona) {
+        setCurrentPersona(persona);
+      }
+    }
+  }, [personaIdFromUrl, personas, setCurrentPersona]);
 
   // Load personas on mount only if not already loaded
   useEffect(() => {
@@ -145,6 +159,15 @@ export default function ChatsPage() {
   useEffect(() => {
     if (selectedPersonaId) {
       loadSessions(selectedPersonaId);
+    }
+  }, [selectedPersonaId]);
+
+  // Collapse sidebar panels for special persona
+  useEffect(() => {
+    if (selectedPersonaId === '1773932466715-7szyfnz60') {
+      setShowSessions(false);
+      setShowJobs(false);
+      setShowUserMenu(false);
     }
   }, [selectedPersonaId]);
 
@@ -191,11 +214,13 @@ export default function ChatsPage() {
 
   // Load available voices
   useEffect(() => {
+    let mounted = true;
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       const loadVoices = () => {
+        if (!mounted) return;
         const voices = window.speechSynthesis.getVoices();
         setAvailableVoices(voices);
-        if (voices.length > 0 && !selectedVoice) {
+        if (voices.length > 0) {
           // Auto-select voice based on language
           if (language === 'hi') {
             // Try to find a Hindi voice first
@@ -224,8 +249,12 @@ export default function ChatsPage() {
       };
       loadVoices();
       window.speechSynthesis.onvoiceschanged = loadVoices;
+      return () => {
+        mounted = false;
+        window.speechSynthesis.onvoiceschanged = null;
+      };
     }
-  }, [selectedVoice, language]);
+  }, [language]);
 
   // Speech recognition functions
   const startListening = () => {
@@ -519,7 +548,15 @@ export default function ChatsPage() {
   const handleSend = async () => {
     if (!input.trim() || !selectedPersonaId || isLoading) return;
 
-    const selectedPersona = personas.find(p => p.id === selectedPersonaId);
+    let selectedPersona = personas.find(p => p.id === selectedPersonaId);
+    if (!selectedPersona && selectedPersonaId === '1773932466715-7szyfnz60') {
+      selectedPersona = {
+        id: '1773932466715-7szyfnz60',
+        title: 'Aria',
+        description: 'Your beautiful 3D companion',
+        avatar_url: '',
+      } as any;
+    }
 
     const userMessage: Message = {
       role: 'user',
@@ -587,7 +624,15 @@ export default function ChatsPage() {
     router.push('/');
   };
 
-  const selectedPersona = personas.find(p => p.id === selectedPersonaId);
+  let selectedPersona = personas.find(p => p.id === selectedPersonaId);
+  if (!selectedPersona && selectedPersonaId === '1773932466715-7szyfnz60') {
+    selectedPersona = {
+      id: '1773932466715-7szyfnz60',
+      title: 'Aria',
+      description: 'Your beautiful 3D companion',
+      avatar_url: '',
+    } as any;
+  }
   const personaTasks = tasks.filter(t => t.persona_id === selectedPersonaId);
 
   // Responsive sidebar class
@@ -892,9 +937,17 @@ export default function ChatsPage() {
       )}
 
       {/* Chat Area */}
-      <main className="flex-1 flex flex-col h-screen lg:ml-72">
+      <main className="flex-1 flex flex-col h-screen lg:ml-72 relative z-0">
+        
+        {/* 3D Background - ONLY for special persona */}
+        {isSpecialPersona && (
+          <div className="absolute inset-0 pointer-events-none -z-10 opacity-60">
+            <ThreeDMemorySphere isSpeaking={isSpeaking} />
+          </div>
+        )}
+
         {/* Mobile Header */}
-        <header className="lg:hidden h-16 border-b border-surface-800/50 flex items-center px-4 bg-surface-900/30">
+        <header className="lg:hidden h-16 border-b border-surface-800/50 flex items-center px-4 bg-surface-900/30 backdrop-blur-sm z-10">
           <button
             onClick={() => setMobileMenuOpen(true)}
             className="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors mr-4"
@@ -906,7 +959,7 @@ export default function ChatsPage() {
         {selectedPersona ? (
           <>
             {/* Desktop Chat Header */}
-            <header className="hidden lg:flex h-16 border-b border-surface-800/50 flex items-center px-6 bg-surface-900/30">
+            <header className="hidden lg:flex h-16 border-b border-surface-800/50 items-center px-6 bg-surface-900/30 backdrop-blur-sm z-10">
               <button
                 onClick={() => router.push('/dashboard')}
                 className="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors mr-4"
@@ -939,7 +992,7 @@ export default function ChatsPage() {
             </header>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4 relative z-10">
               {messages.length === 0 ? (
                 <div className="h-full flex items-center justify-center">
                   <motion.div 
@@ -1029,7 +1082,7 @@ export default function ChatsPage() {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 border-t border-surface-800/50 bg-surface-900/30">
+            <div className="p-4 border-t border-surface-800/50 bg-surface-900/30 backdrop-blur-sm z-10">
               <div className="max-w-4xl mx-auto">
                 {/* Bottom Area with Voice Tab and Input */}
                 <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
@@ -1089,11 +1142,12 @@ export default function ChatsPage() {
               <span className="text-lg font-semibold text-white">Chats</span>
             </header>
             
-            <div className="h-full flex items-center justify-center p-4">
+            <div className="h-full flex items-center justify-center p-4 relative z-10">
+              {/* No 3D sphere here for normal personas */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-center"
+                className="text-center z-10"
               >
                 <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-beyond-purple/20 to-beyond-pink/20 flex items-center justify-center">
                   <Users className="w-10 h-10 text-beyond-purple" />

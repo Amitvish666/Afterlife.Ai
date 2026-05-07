@@ -12,18 +12,30 @@ interface Point3D {
   color: string;
 }
 
-export default function ThreeDMemorySphere() {
+interface ThreeDMemorySphereProps {
+  isSpeaking?: boolean;
+}
+
+export default function ThreeDMemorySphere({ isSpeaking = false }: ThreeDMemorySphereProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dimensions, setDimensions] = useState({ width: 400, height: 400 });
   const mouseRef = useRef({ x: 0, y: 0, isHovering: false });
   const rotationRef = useRef({ x: 0, y: 0, targetX: 0.002, targetY: 0.003 });
+  const isSpeakingRef = useRef(isSpeaking);
+
+  useEffect(() => {
+    isSpeakingRef.current = isSpeaking;
+  }, [isSpeaking]);
 
   useEffect(() => {
     const handleResize = () => {
       if (containerRef.current) {
-        const width = containerRef.current.clientWidth;
-        const height = containerRef.current.clientHeight || width; // Fallback to square
+        const w = containerRef.current.clientWidth;
+        const h = containerRef.current.clientHeight;
+        // Fallback to safe default minimum dimensions to prevent circular layout collapse (0x0 pixels)
+        const width = w > 50 ? w : 500;
+        const height = h > 50 ? h : (w > 50 ? w : 500);
         setDimensions({ width, height });
       }
     };
@@ -113,14 +125,17 @@ export default function ThreeDMemorySphere() {
       ctx.clearRect(0, 0, dimensions.width, dimensions.height);
       time += 1;
 
+      const speaking = isSpeakingRef.current;
+
       // 1. Compute target rotation speeds based on mouse coordinates
-      let rotXSpeed = 0.0015;
-      let rotYSpeed = 0.0025;
+      let rotXSpeed = speaking ? 0.008 : 0.0015;
+      let rotYSpeed = speaking ? 0.012 : 0.0025;
 
       if (mouseRef.current.isHovering) {
         // Accelerate/tilt based on mouse distance from center
-        rotXSpeed = (mouseRef.current.y / dimensions.height) * 0.03;
-        rotYSpeed = (mouseRef.current.x / dimensions.width) * 0.03;
+        const hoverMult = speaking ? 0.06 : 0.03;
+        rotXSpeed = (mouseRef.current.y / dimensions.height) * hoverMult;
+        rotYSpeed = (mouseRef.current.x / dimensions.width) * hoverMult;
       }
 
       // Smooth interpolation (lerping) for rotation inertia
@@ -135,7 +150,9 @@ export default function ThreeDMemorySphere() {
       // 2. Rotate, deform (breathing effect), and project points
       const projectedPoints = points.map((p, i) => {
         // Organic 3D morphing/breathing using sine wave based on time and index
-        const morphFactor = 1 + Math.sin(time * 0.015 + i * 0.15) * 0.06;
+        const speedMultiplier = speaking ? 0.05 : 0.015;
+        const amplitude = speaking ? 0.18 : 0.06;
+        const morphFactor = 1 + Math.sin(time * speedMultiplier + i * 0.15) * amplitude;
         let x = p.baseX * morphFactor;
         let y = p.baseY * morphFactor;
         let z = p.baseZ * morphFactor;
@@ -171,7 +188,6 @@ export default function ThreeDMemorySphere() {
       // 3. Render connections (lines) between neighboring points
       // Closer points in 3D get brighter glowing lines
       const maxDistance = sphereRadius * 0.78;
-      const maxDistanceSq = maxDistance * maxDistance;
       
       ctx.lineWidth = 0.8;
       for (let i = 0; i < projectedPoints.length; i++) {
@@ -179,18 +195,17 @@ export default function ThreeDMemorySphere() {
           const p1 = points[i];
           const p2 = points[j];
 
-          // Compute squared 3D distance first to avoid heavy Math.sqrt calls
+          // Compute 3D Euclidean distance
           const dx = p1.x - p2.x;
           const dy = p1.y - p2.y;
           const dz = p1.z - p2.z;
-          const distSq = dx * dx + dy * dy + dz * dz;
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-          if (distSq < maxDistanceSq) {
-            const dist = Math.sqrt(distSq);
+          if (dist < maxDistance) {
             const proj1 = projectedPoints[i];
             const proj2 = projectedPoints[j];
 
-            // Opacity is inversely proportional to depth (foreground = brighter)
+            // Opacity is inversely proportional to distance and directly proportional to depth (foreground = brighter)
             const distRatio = 1 - dist / maxDistance;
             
             // Depth opacity based on average Z depth
@@ -200,7 +215,14 @@ export default function ThreeDMemorySphere() {
             const opacity = distRatio * depthRatio * 0.32;
 
             if (opacity > 0.01) {
-              ctx.strokeStyle = `rgba(${proj1.color}, ${opacity})`;
+              const grad = ctx.createLinearGradient(
+                proj1.screenX, proj1.screenY,
+                proj2.screenX, proj2.screenY
+              );
+              grad.addColorStop(0, `rgba(${proj1.color}, ${opacity})`);
+              grad.addColorStop(1, `rgba(${proj2.color}, ${opacity})`);
+
+              ctx.strokeStyle = grad;
               ctx.beginPath();
               ctx.moveTo(proj1.screenX, proj1.screenY);
               ctx.lineTo(proj2.screenX, proj2.screenY);

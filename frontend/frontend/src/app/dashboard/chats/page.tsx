@@ -40,6 +40,7 @@ import toast from 'react-hot-toast';
 import { apiClient } from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
+import ThreeDMemorySphere from '@/components/ThreeDMemorySphere';
 import { useAuthStore, usePersonaStore } from '@/store';
 import { cn } from '@/lib/utils';
 
@@ -90,7 +91,7 @@ export default function ChatsPage() {
   const [speechPitch, setSpeechPitch] = useState(1.1);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<string>('');
-  const [showVoiceTab, setShowVoiceTab] = useState(true);
+  const [showVoiceTab, setShowVoiceTab] = useState(false);
   const [language, setLanguage] = useState<'en' | 'hi' | 'mr'>('en');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -132,13 +133,17 @@ export default function ChatsPage() {
       setCurrentPersona(firstPersona);
     }
   }, [personas, selectedPersonaId, setCurrentPersona]);
-
   // Load sessions and memories when persona changes
   useEffect(() => {
     if (selectedPersonaId) {
       loadSessions(selectedPersonaId);
       loadMemories(selectedPersonaId);
     }
+  }, [selectedPersonaId]);
+
+  // Ensure voice settings panel is closed by default on landing or when persona changes
+  useEffect(() => {
+    setShowVoiceTab(false);
   }, [selectedPersonaId]);
 
   const loadMemories = async (personaId: string) => {
@@ -767,8 +772,11 @@ export default function ChatsPage() {
 
           {/* Main Chat Area */}
           <main className="flex-1 flex flex-col min-w-0 bg-surface-950 relative overflow-hidden">
-            {/* Ambient Background Glows */}
+            {/* Ambient Background Glows & 3D Sphere */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
+              <div className="absolute inset-0 z-0 opacity-40">
+                <ThreeDMemorySphere isSpeaking={isSpeaking} />
+              </div>
               <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-beyond-purple/5 blur-[120px] rounded-full" />
               <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-beyond-pink/5 blur-[120px] rounded-full" />
             </div>

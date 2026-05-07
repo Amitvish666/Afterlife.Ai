@@ -12,18 +12,30 @@ interface Point3D {
   color: string;
 }
 
-export default function ThreeDMemorySphere() {
+interface ThreeDMemorySphereProps {
+  isSpeaking?: boolean;
+}
+
+export default function ThreeDMemorySphere({ isSpeaking = false }: ThreeDMemorySphereProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dimensions, setDimensions] = useState({ width: 400, height: 400 });
   const mouseRef = useRef({ x: 0, y: 0, isHovering: false });
   const rotationRef = useRef({ x: 0, y: 0, targetX: 0.002, targetY: 0.003 });
+  const isSpeakingRef = useRef(isSpeaking);
+
+  useEffect(() => {
+    isSpeakingRef.current = isSpeaking;
+  }, [isSpeaking]);
 
   useEffect(() => {
     const handleResize = () => {
       if (containerRef.current) {
-        const width = containerRef.current.clientWidth;
-        const height = containerRef.current.clientHeight || width; // Fallback to square
+        const w = containerRef.current.clientWidth;
+        const h = containerRef.current.clientHeight;
+        // Fallback to safe default minimum dimensions to prevent circular layout collapse (0x0 pixels)
+        const width = w > 50 ? w : 500;
+        const height = h > 50 ? h : (w > 50 ? w : 500);
         setDimensions({ width, height });
       }
     };
@@ -113,14 +125,17 @@ export default function ThreeDMemorySphere() {
       ctx.clearRect(0, 0, dimensions.width, dimensions.height);
       time += 1;
 
+      const speaking = isSpeakingRef.current;
+
       // 1. Compute target rotation speeds based on mouse coordinates
-      let rotXSpeed = 0.0015;
-      let rotYSpeed = 0.0025;
+      let rotXSpeed = speaking ? 0.008 : 0.0015;
+      let rotYSpeed = speaking ? 0.012 : 0.0025;
 
       if (mouseRef.current.isHovering) {
         // Accelerate/tilt based on mouse distance from center
-        rotXSpeed = (mouseRef.current.y / dimensions.height) * 0.03;
-        rotYSpeed = (mouseRef.current.x / dimensions.width) * 0.03;
+        const hoverMult = speaking ? 0.06 : 0.03;
+        rotXSpeed = (mouseRef.current.y / dimensions.height) * hoverMult;
+        rotYSpeed = (mouseRef.current.x / dimensions.width) * hoverMult;
       }
 
       // Smooth interpolation (lerping) for rotation inertia
@@ -135,7 +150,9 @@ export default function ThreeDMemorySphere() {
       // 2. Rotate, deform (breathing effect), and project points
       const projectedPoints = points.map((p, i) => {
         // Organic 3D morphing/breathing using sine wave based on time and index
-        const morphFactor = 1 + Math.sin(time * 0.015 + i * 0.15) * 0.06;
+        const speedMultiplier = speaking ? 0.05 : 0.015;
+        const amplitude = speaking ? 0.18 : 0.06;
+        const morphFactor = 1 + Math.sin(time * speedMultiplier + i * 0.15) * amplitude;
         let x = p.baseX * morphFactor;
         let y = p.baseY * morphFactor;
         let z = p.baseZ * morphFactor;

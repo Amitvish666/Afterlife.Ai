@@ -866,9 +866,8 @@ export default function AvatarCanvas({ isTalking, text: _text, showControls: _s 
 
     ctx.restore(); // tilt  + translate
 
-    // ── Schedule next frame ──────────────────────────────────────────────────
     animRef.current = requestAnimationFrame(draw);
-  }, [isTalking, emotion]);
+  }, [isTalking, emotion, wordTrigger]);
 
   // ── Resize handler ─────────────────────────────────────────────────────────
   useEffect(() => {

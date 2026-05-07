@@ -27,6 +27,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import nextDynamic from 'next/dynamic';
 import type { Emotion } from '@/components/AvatarCanvas';
+import { cn } from '@/lib/utils';
 
 // Dynamic import for AvatarCanvas (SSR disabled - uses browser APIs)
 const AvatarCanvas = nextDynamic(() => import('@/components/AvatarCanvas'), {
@@ -86,6 +87,9 @@ function AvatarContent() {
   const personaId = searchParams.get('persona');
 
   // State
+  const [mounted, setMounted] = useState(false);
+  const [speechRate, setSpeechRate] = useState(1.0);
+  const [speechPitch, setSpeechPitch] = useState(1.05);
   const [text, setText] = useState('');
   const [isTalking, setIsTalking] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -112,6 +116,7 @@ function AvatarContent() {
 
   // Init speech synthesis ref
   useEffect(() => {
+    setMounted(true);
     if (typeof window !== 'undefined') {
       synthRef.current = window.speechSynthesis;
     }
@@ -155,8 +160,8 @@ function AvatarContent() {
       'ar': 'ar-SA'
     };
     utterance.lang = langMap[language] || language;
-    utterance.rate = 1.0;
-    utterance.pitch = 1.05; 
+    utterance.rate = speechRate;
+    utterance.pitch = speechPitch; 
 
     // Prefer female voice for this avatar
     const voices = synth.getVoices();
@@ -338,166 +343,170 @@ function AvatarContent() {
   };
 
   return (
-    <div style={{
-      height: '100vh',
-      maxHeight: '100vh',
-      overflow: 'hidden',
-      background: 'linear-gradient(135deg, #070d16 0%, #0d1524 50%, #060c14 100%)',
-      display: 'flex',
-      flexDirection: 'column',
-      fontFamily: "'Inter', system-ui, sans-serif",
-    }}>
+    <div className="h-screen max-h-screen overflow-hidden bg-slate-950 flex flex-col font-sans text-slate-200 relative select-none">
+      {/* Glowing Tech Background Blobs */}
+      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-beyond-purple/10 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-beyond-pink/5 blur-[120px] rounded-full pointer-events-none" />
 
-      {/* ── Header ── */}
-      <header style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'rgba(6,12,20,0.85)',
-        backdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-        padding: '0 24px',
-        height: '64px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      {/* ── Premium Header ── */}
+      <header className="sticky top-0 z-50 bg-slate-950/65 backdrop-blur-3xl border-b border-white/[0.06] px-6 h-16 flex items-center justify-between shadow-lg">
+        <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
-            style={{
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: '10px',
-              width: '36px', height: '36px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: '#94a3b8',
-              transition: 'all 0.2s',
-            }}
+            className="bg-white/[0.04] border border-white/[0.08] rounded-xl w-9 h-9 flex items-center justify-center cursor-pointer text-slate-400 hover:text-white hover:bg-white/[0.08] hover:border-white/[0.15] active:scale-95 transition-all duration-200 shadow-inner"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={16} />
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: '38px', height: '38px', borderRadius: '12px',
-              background: 'linear-gradient(135deg, #7c3aed, #db2777)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Sparkles size={20} color="white" />
+          
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-beyond-purple via-violet-600 to-beyond-pink flex items-center justify-center shadow-lg shadow-beyond-purple/20">
+              <Sparkles size={18} className="text-white animate-pulse" />
             </div>
             <div>
-              <div style={{ color: 'white', fontWeight: 700, fontSize: '16px', lineHeight: 1.2 }}>AI Avatar</div>
-              <div style={{ color: '#64748b', fontSize: '11px' }}>Human-like • Real-time</div>
+              <div className="text-white font-extrabold text-sm tracking-wide leading-none">AI Avatar Interface</div>
+              <div className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1.5 flex items-center gap-1.5">
+                Human-like <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" /> <span className="text-emerald-400 font-bold">Real-time Sync</span>
+              </div>
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div className="flex gap-4 items-center">
           {/* Mode toggle */}
-          <div style={{
-            display: 'flex',
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '20px', padding: '3px',
-          }}>
+          <div className="flex bg-white/[0.03] border border-white/[0.06] rounded-full p-1 shadow-inner relative overflow-hidden">
             {(['realtime', 'hybrid'] as const).map(m => (
-              <button key={m} onClick={() => setMode(m)} style={{
-                padding: '5px 14px', borderRadius: '16px', cursor: 'pointer',
-                border: 'none', fontSize: '12px', fontWeight: 600,
-                transition: 'all 0.2s',
-                background: mode === m ? 'linear-gradient(135deg, #7c3aed, #db2777)' : 'transparent',
-                color: mode === m ? 'white' : '#94a3b8',
-              }}>
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={cn(
+                  "px-4 py-1.5 rounded-full cursor-pointer border-none text-[10px] font-black uppercase tracking-widest transition-all duration-300",
+                  mode === m 
+                    ? "bg-gradient-to-r from-beyond-purple to-beyond-pink text-white shadow-md shadow-beyond-purple/20" 
+                    : "bg-transparent text-slate-400 hover:text-slate-200"
+                )}
+              >
                 {m === 'realtime' ? 'Real-time' : 'Realistic'}
               </button>
             ))}
           </div>
 
-          {/* Settings */}
+          {/* Settings button */}
           <button
             onClick={() => setShowSettings(!showSettings)}
-            style={{
-              background: showSettings ? 'rgba(124, 58, 237, 0.3)' : 'rgba(255,255,255,0.05)',
-              border: `1px solid ${showSettings ? 'rgba(124,58,237,0.5)' : 'rgba(255,255,255,0.08)'}`,
-              borderRadius: '10px', width: '36px', height: '36px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: showSettings ? '#a78bfa' : '#94a3b8',
-              transition: 'all 0.2s',
-            }}
+            className={cn(
+              "border rounded-xl w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-300 shadow-inner",
+              showSettings 
+                ? "bg-beyond-purple/20 border-beyond-purple/50 text-beyond-purple drop-shadow-[0_0_8px_rgba(139,92,246,0.5)]" 
+                : "bg-white/[0.04] border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/[0.08] hover:border-white/[0.15]"
+            )}
           >
-            <Settings size={18} />
+            <Settings size={16} />
           </button>
         </div>
       </header>
 
-      {/* ── Main ── */}
-      <main style={{ flex: 1, display: 'flex', padding: '16px 20px', gap: '20px', overflow: 'hidden', minHeight: 0 }}>
+      {/* ── Main Layout ── */}
+      <main className="flex-1 flex flex-col lg:flex-row p-6 gap-6 overflow-hidden min-h-0 relative z-10">
         
-        {/* Left: Avatar */}
-        <div style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+        {/* Left Panel: Avatar Canvas */}
+        <div className="flex-1 flex flex-col gap-4 min-w-0 min-h-0 overflow-hidden relative">
 
-          {/* Settings panel */}
+          {/* Settings panel inside */}
           <AnimatePresence>
             {showSettings && (
               <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                style={{
-                  background: 'rgba(10,18,30,0.8)',
-                  backdropFilter: 'blur(12px)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  borderRadius: '16px',
-                  padding: '20px',
-                  overflow: 'hidden',
-                }}
+                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                className="absolute top-4 left-4 right-4 z-40 bg-gradient-to-b from-slate-950/95 via-slate-900/95 to-slate-950/95 backdrop-blur-3xl border border-white/[0.12] rounded-2xl p-5 shadow-[0_25px_60px_rgba(0,0,0,0.85)] overflow-visible"
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h3 style={{ color: 'white', fontWeight: 600, fontSize: '15px', margin: 0 }}>Settings</h3>
-                  <button onClick={() => setShowSettings(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-white font-extrabold text-sm uppercase tracking-wider margin-0 flex items-center gap-2">
+                    <Settings size={14} className="text-beyond-purple" />
+                    Cognitive Configuration
+                  </h3>
+                  <button
+                    onClick={() => setShowSettings(false)}
+                    className="background-none border-none text-slate-500 hover:text-white cursor-pointer p-1"
+                  >
                     <X size={16} />
                   </button>
                 </div>
-                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                  {/* Language */}
-                  <div style={{ flex: '1 1 200px' }}>
-                    <label style={{ color: '#64748b', fontSize: '12px', fontWeight: 500, display: 'block', marginBottom: '8px' }}>
-                      <Globe size={12} style={{ display: 'inline', marginRight: '4px' }} /> Language
+
+                <div className="flex flex-col gap-5">
+                  {/* Language Card Wrapper */}
+                  <div className="w-full">
+                    <label className="text-slate-400 text-[10px] font-black uppercase tracking-widest block mb-3 flex items-center gap-1.5">
+                      <Globe size={11} className="text-beyond-purple animate-pulse" /> Language Pack / Cognitive Core
                     </label>
-                    <div style={{ position: 'relative' }}>
-                      <button
-                        onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
-                        style={{
-                          width: '100%', padding: '10px 14px',
-                          background: 'rgba(255,255,255,0.04)',
-                          border: '1px solid rgba(255,255,255,0.08)',
-                          borderRadius: '10px', color: 'white', cursor: 'pointer',
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                          fontSize: '14px',
-                        }}
-                      >
-                        <span>{LANGUAGES.find(l => l.code === language)?.flag} {LANGUAGES.find(l => l.code === language)?.name}</span>
-                        <ChevronDown size={14} color="#64748b" />
-                      </button>
-                      {showLanguageDropdown && (
-                        <div style={{
-                          position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '4px',
-                          background: '#0f1a2a', border: '1px solid rgba(255,255,255,0.08)',
-                          borderRadius: '10px', zIndex: 100, maxHeight: '200px', overflowY: 'auto',
-                        }}>
-                          {LANGUAGES.map(lang => (
-                            <button key={lang.code} onClick={() => { setLanguage(lang.code); setShowLanguageDropdown(false); }}
-                              style={{
-                                width: '100%', padding: '10px 14px', background: 'none', border: 'none',
-                                color: language === lang.code ? '#a78bfa' : 'white', cursor: 'pointer',
-                                textAlign: 'left', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px',
-                              }}
-                            >
-                              <span>{lang.flag}</span>
-                              <span>{lang.name}</span>
-                              {language === lang.code && <CheckCircle size={14} style={{ marginLeft: 'auto' }} />}
-                            </button>
-                          ))}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 w-full max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">
+                      {LANGUAGES.map(lang => {
+                        const isSelected = language === lang.code;
+                        return (
+                          <button
+                            key={lang.code}
+                            onClick={() => setLanguage(lang.code)}
+                            className={cn(
+                              "flex items-center gap-2 px-3 py-2 rounded-xl border transition-all duration-300 text-left cursor-pointer",
+                              isSelected
+                                ? "bg-gradient-to-r from-beyond-purple/20 to-beyond-pink/20 border-beyond-purple/50 text-white shadow-[0_0_15px_rgba(139,92,246,0.15)]"
+                                : "bg-white/[0.02] border-white/[0.04] text-slate-400 hover:text-slate-200 hover:bg-white/[0.04] hover:border-white/[0.08]"
+                            )}
+                          >
+                            <span className="text-sm bg-white/[0.04] w-6 h-6 rounded-lg flex items-center justify-center border border-white/[0.06] shadow-inner">{lang.flag}</span>
+                            <span className="text-xs font-semibold tracking-wide">{lang.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Customization Sliders and Status Card */}
+                  <div className="flex flex-col md:flex-row gap-5 w-full pt-4 border-t border-white/[0.05]">
+                    <div className="flex-1 flex flex-col gap-4">
+                      <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Speech Rate</span>
+                          <span className="text-xs font-bold text-beyond-purple">{speechRate.toFixed(2)}x</span>
                         </div>
-                      )}
+                        <input
+                          type="range"
+                          min="0.5"
+                          max="2.0"
+                          step="0.1"
+                          value={speechRate}
+                          onChange={e => setSpeechRate(parseFloat(e.target.value))}
+                          className="w-full accent-beyond-purple bg-white/[0.04] h-1 rounded-lg appearance-none cursor-pointer"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vocal Pitch</span>
+                          <span className="text-xs font-bold text-beyond-pink">{speechPitch.toFixed(2)}x</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.5"
+                          max="2.0"
+                          step="0.1"
+                          value={speechPitch}
+                          onChange={e => setSpeechPitch(parseFloat(e.target.value))}
+                          className="w-full accent-beyond-pink bg-white/[0.04] h-1 rounded-lg appearance-none cursor-pointer"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex-1 bg-white/[0.01] border border-white/[0.04] rounded-xl p-3.5 flex flex-col gap-2 justify-center">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-2 w-2 relative">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-beyond-purple opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-beyond-purple"></span>
+                        </span>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cognitive Status</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-normal m-0">
+                        Selected Language Pack <span className="text-beyond-purple font-bold">({LANGUAGES.find(l => l.code === language)?.name})</span> determines phonetic responses, facial muscle synchronization, and sub-vocal translation matrices.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -505,204 +514,174 @@ function AvatarContent() {
             )}
           </AnimatePresence>
 
-          {/* Avatar canvas */}
-          <div style={{
-            flex: '1 1 auto',
-            background: 'rgba(10,18,30,0.6)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '24px',
-            overflow: 'hidden',
-            position: 'relative',
-            minHeight: 0,
-          }}>
-            <AvatarCanvas isTalking={isTalking} text={text || chatInput} showControls={false} emotion={displayEmotion} wordTrigger={wordTrigger} />
+          {/* Avatar canvas Wrapper */}
+          <div className="flex-1 bg-slate-900/35 backdrop-blur-3xl border border-white/[0.06] rounded-[2rem] overflow-hidden relative min-h-0 shadow-[0_20px_50px_rgba(0,0,0,0.4)] group/canvas flex items-center justify-center min-h-[400px]">
+            {mounted ? (
+              <AvatarCanvas isTalking={isTalking} text={text || chatInput} showControls={false} emotion={displayEmotion} wordTrigger={wordTrigger} />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-beyond-purple" />
+              </div>
+            )}
 
             {/* Status overlay */}
-            {(isAIThinking) && (
-              <div style={{
-                position: 'absolute', top: '16px', left: '50%', transform: 'translateX(-50%)',
-                background: 'rgba(10,15,25,0.7)', backdropFilter: 'blur(8px)',
-                borderRadius: '20px', padding: '8px 16px',
-                display: 'flex', alignItems: 'center', gap: '8px',
-                border: '1px solid rgba(124,58,237,0.3)',
-              }}>
-                <Loader2 size={14} color="#a78bfa" style={{ animation: 'spin 1s linear infinite' }} />
-                <span style={{ color: '#a78bfa', fontSize: '13px', fontWeight: 500 }}>Thinking...</span>
+            {isAIThinking && (
+              <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-slate-950/80 backdrop-blur-xl rounded-full px-4 py-2 flex items-center gap-2.5 border border-beyond-purple/40 shadow-[0_0_15px_rgba(139,92,246,0.25)]">
+                <Loader2 size={14} className="animate-spin text-beyond-purple" />
+                <span className="text-beyond-purple text-xs font-black uppercase tracking-widest">AI Sync active</span>
               </div>
             )}
           </div>
 
-          {/* Emotion picker — compact bar */}
-          <div style={{
-            background: 'rgba(10,18,30,0.6)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '14px', padding: '10px 14px',
-            flexShrink: 0,
-          }}>
-            <div style={{ color: '#64748b', fontSize: '11px', fontWeight: 500, marginBottom: '8px' }}>Expressions</div>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {EMOTION_BUTTONS.map(eb => (
-                <button key={eb.emotion} onClick={() => setManualEmotion(displayEmotion === eb.emotion ? null : eb.emotion)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '5px',
-                    padding: '5px 11px', borderRadius: '20px', cursor: 'pointer',
-                    border: `1px solid ${displayEmotion === eb.emotion ? 'rgba(124,58,237,0.5)' : 'rgba(255,255,255,0.06)'}`,
-                    background: displayEmotion === eb.emotion ? eb.color : 'rgba(255,255,255,0.02)',
-                    color: displayEmotion === eb.emotion ? 'white' : '#64748b',
-                    fontSize: '11px', fontWeight: 500, transition: 'all 0.2s',
-                  }}
-                >
-                  {eb.icon}
-                  {eb.label}
-                </button>
-              ))}
+          {/* Expression Picker */}
+          <div className="bg-slate-900/30 backdrop-blur-2xl border border-white/[0.05] rounded-2xl p-4 flex-shrink-0 shadow-lg">
+            <div className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <Sparkles size={12} className="text-beyond-pink" /> Expression Matrix
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {EMOTION_BUTTONS.map(eb => {
+                const isActive = displayEmotion === eb.emotion;
+                return (
+                  <button
+                    key={eb.emotion}
+                    onClick={() => setManualEmotion(displayEmotion === eb.emotion ? null : eb.emotion)}
+                    className={cn(
+                      "flex items-center gap-2 px-3.5 py-2 rounded-full cursor-pointer text-xs font-bold transition-all duration-300 border active:scale-95",
+                      isActive
+                        ? "text-white border-white/[0.12] shadow-lg shadow-black/15"
+                        : "text-slate-400 bg-white/[0.02] border-white/[0.04] hover:text-slate-200 hover:bg-white/[0.04] hover:border-white/[0.08]"
+                    )}
+                    style={{
+                      background: isActive ? eb.color : undefined,
+                      borderColor: isActive ? 'rgba(255,255,255,0.15)' : undefined,
+                    }}
+                  >
+                    <span className={cn("transition-transform duration-300", isActive && "scale-110")}>{eb.icon}</span>
+                    <span>{eb.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
 
-        {/* Right: Controls */}
-        <div style={{ width: '380px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {/* Right Panel: Controls */}
+        <div className="w-full lg:w-[380px] flex-shrink-0 flex flex-col gap-5 min-h-0">
 
-          {/* Text-to-speech input */}
-          <div style={{
-            background: 'rgba(10,18,30,0.6)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '20px', padding: '20px',
-          }}>
-            <div style={{ color: 'white', fontWeight: 600, fontSize: '15px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Volume2 size={16} color="#a78bfa" />
-              Make Avatar Speak
+          {/* Text-to-speech input Card */}
+          <div className="bg-slate-900/35 backdrop-blur-3xl border border-white/[0.06] rounded-[2rem] p-5 shadow-xl relative overflow-hidden group/speak">
+            <div className="text-white font-extrabold text-xs uppercase tracking-wider mb-3.5 flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-beyond-purple/10 border border-beyond-purple/20 flex items-center justify-center">
+                <Volume2 size={13} className="text-beyond-purple" />
+              </div>
+              Vocal Synthesis
             </div>
+            
             <textarea
               value={text}
               onChange={e => setText(e.target.value.slice(0, 2000))}
               placeholder="Type text for avatar to speak aloud..."
-              style={{
-                width: '100%', minHeight: '110px', resize: 'vertical',
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.07)',
-                borderRadius: '12px', color: 'white', padding: '14px',
-                fontSize: '14px', lineHeight: '1.5',
-                outline: 'none', fontFamily: 'inherit',
-                boxSizing: 'border-box',
-              }}
+              className="w-full min-h-[100px] max-h-[200px] resize-y bg-slate-950/40 border border-white/[0.06] hover:border-white/[0.12] focus:border-beyond-purple/40 rounded-xl text-xs text-white p-4 leading-relaxed outline-none font-sans box-border shadow-inner focus:shadow-[0_0_15px_rgba(139,92,246,0.06)] transition-all duration-300 custom-scrollbar placeholder:text-slate-600"
             />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-              <span style={{ color: '#475569', fontSize: '11px' }}>{text.length} / 2000</span>
-              <div style={{ display: 'flex', gap: '8px' }}>
+            
+            <div className="flex justify-between items-center mt-3">
+              <span className="text-slate-600 text-[10px] font-black tracking-wider uppercase">{text.length} / 2000</span>
+              <div className="flex gap-2">
                 {isTalking ? (
-                  <button onClick={stopSpeaking}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '6px',
-                      padding: '9px 18px', borderRadius: '12px', cursor: 'pointer',
-                      background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
-                      color: '#ef4444', fontSize: '14px', fontWeight: 600,
-                    }}
+                  <motion.button
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    whileHover={{ scale: 1.04, y: -1 }}
+                    whileTap={{ scale: 0.96 }}
+                    onClick={stopSpeaking}
+                    className="relative overflow-hidden flex items-center gap-2 px-6 py-2.5 rounded-xl cursor-pointer bg-gradient-to-r from-rose-500 via-red-500 to-red-600 text-white text-xs font-black uppercase tracking-wider transition-all duration-300 border border-red-400/20 shadow-[0_0_20px_rgba(239,68,68,0.35)] hover:shadow-[0_0_30px_rgba(239,68,68,0.6)]"
                   >
-                    <Pause size={16} /> Stop
-                  </button>
+                    {/* Pulse glow background */}
+                    <span className="absolute inset-0 bg-white/10 animate-pulse pointer-events-none" />
+                    <Pause size={13} className="fill-current animate-pulse relative z-10" /> 
+                    <span className="relative z-10 font-bold">Stop Speech</span>
+                  </motion.button>
                 ) : (
-                  <button onClick={handleSpeak} disabled={!text.trim()}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '6px',
-                      padding: '9px 18px', borderRadius: '12px', cursor: text.trim() ? 'pointer' : 'not-allowed',
-                      border: 'none', background: text.trim()
-                        ? 'linear-gradient(135deg, #7c3aed, #db2777)'
-                        : 'rgba(255,255,255,0.04)',
-                      color: text.trim() ? 'white' : '#475569', fontSize: '14px', fontWeight: 600,
-                      opacity: text.trim() ? 1 : 0.6,
-                    }}
+                  <motion.button
+                    whileHover={text.trim() ? { scale: 1.04, y: -1 } : {}}
+                    whileTap={text.trim() ? { scale: 0.96 } : {}}
+                    onClick={handleSpeak}
+                    disabled={!text.trim()}
+                    className={cn(
+                      "relative overflow-hidden flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 border",
+                      text.trim()
+                        ? "bg-gradient-to-r from-beyond-purple via-violet-600 to-beyond-pink border-transparent text-white cursor-pointer shadow-[0_8px_25px_rgba(139,92,246,0.3)] hover:shadow-[0_12px_35px_rgba(139,92,246,0.55)] hover:brightness-110"
+                        : "bg-white/[0.02] border-white/[0.04] text-slate-500 cursor-not-allowed shadow-inner"
+                    )}
                   >
-                    <Play size={16} /> Speak
-                  </button>
+                    {text.trim() && (
+                      <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full hover:animate-[shimmer_1.5s_infinite] pointer-events-none" />
+                    )}
+                    <Play size={13} className={cn("transition-all duration-300 relative z-10", text.trim() ? "fill-current text-white scale-110" : "text-slate-500")} /> 
+                    <span className="relative z-10 font-bold">Speak</span>
+                  </motion.button>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Chat */}
-          <div style={{
-            flex: '1 1 auto',
-            background: 'rgba(10,18,30,0.6)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '20px',
-            display: 'flex', flexDirection: 'column',
-            overflow: 'hidden', minHeight: '300px',
-          }}>
+          {/* Chat with AI Card */}
+          <div className="flex-1 bg-slate-900/35 backdrop-blur-3xl border border-white/[0.06] rounded-[2rem] flex flex-col overflow-hidden min-h-[300px] shadow-xl">
             {/* Chat header */}
-            <div style={{
-              padding: '16px 20px',
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
-              display: 'flex', alignItems: 'center', gap: '8px',
-            }}>
-              <MessageCircle size={16} color="#a78bfa" />
-              <span style={{ color: 'white', fontWeight: 600, fontSize: '14px' }}>Chat with AI</span>
-              {isAIThinking && (
-                <span style={{ color: '#64748b', fontSize: '12px', marginLeft: '12px' }}>Thinking...</span>
-              )}
+            <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-beyond-pink/10 border border-beyond-pink/20 flex items-center justify-center">
+                  <MessageCircle size={13} className="text-beyond-pink" />
+                </div>
+                <span className="text-white font-extrabold text-xs uppercase tracking-wider">Cognitive Link</span>
+              </div>
               <button
                 onClick={() => setChatHistory([])}
-                style={{
-                  marginLeft: 'auto',
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: '8px',
-                  padding: '4px 10px',
-                  color: '#94a3b8',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  transition: 'all 0.2s',
-                }}
+                className="bg-white/[0.03] border border-white/[0.06] hover:border-white/[0.12] rounded-lg px-2.5 py-1.5 text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-wider cursor-pointer flex items-center gap-1 transition-all duration-200"
               >
-                <X size={12} /> Clear Chat
+                <X size={10} /> Clear Logs
               </button>
             </div>
 
-            {/* Messages */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* Chat Messages */}
+            <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3 custom-scrollbar">
               {chatHistory.length === 0 && (
-                <div style={{
-                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  color: '#334155', textAlign: 'center', gap: '8px',
-                }}>
-                  <MessageCircle size={32} />
-                  <div style={{ fontSize: '13px' }}>Send a message to chat<br />with your AI avatar</div>
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-600 text-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-white/[0.02] border border-white/[0.04] flex items-center justify-center text-slate-500 animate-pulse">
+                    <Brain size={24} />
+                  </div>
+                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Neural Link Idle</div>
+                  <div className="text-[10px] text-slate-500/60 leading-relaxed">Send a sub-vocal packet to prime<br />the virtual persona core.</div>
                 </div>
               )}
               {chatHistory.map((msg, i) => (
-                <motion.div key={i}
-                  initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                  style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={cn("flex w-full", msg.role === 'user' ? "justify-end" : "justify-start")}
                 >
-                  <div style={{
-                    maxWidth: '85%', padding: '10px 14px', borderRadius: '16px',
-                    fontSize: '13px', lineHeight: '1.5',
-                    background: msg.role === 'user'
-                      ? 'linear-gradient(135deg, #7c3aed, #5b21b6)'
-                      : 'rgba(255,255,255,0.06)',
-                    color: msg.role === 'user' ? 'white' : '#cbd5e1',
-                    borderBottomRightRadius: msg.role === 'user' ? '4px' : '16px',
-                    borderBottomLeftRadius: msg.role === 'user' ? '16px' : '4px',
-                  }}>
+                  <div
+                    className={cn(
+                      "max-w-[85%] px-4 py-3 rounded-2xl text-xs leading-relaxed shadow-md",
+                      msg.role === 'user'
+                        ? "bg-gradient-to-r from-beyond-purple to-violet-600 text-white rounded-br-sm border-t border-white/10"
+                        : "bg-slate-950/45 text-slate-200 rounded-bl-sm border border-white/[0.04]"
+                    )}
+                  >
                     {msg.content}
                   </div>
                 </motion.div>
               ))}
               {isAIThinking && (
-                <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                  <div style={{
-                    padding: '10px 16px', borderRadius: '16px', borderBottomLeftRadius: '4px',
-                    background: 'rgba(255,255,255,0.06)', display: 'flex', gap: '4px', alignItems: 'center',
-                  }}>
-                    {[0,1,2].map(i => (
-                      <div key={i} style={{
-                        width: '6px', height: '6px', borderRadius: '50%',
-                        background: '#7c3aed', animation: 'bounce 1.2s ease-in-out infinite',
-                        animationDelay: `${i * 0.2}s`,
-                      }} />
+                <div className="flex justify-start">
+                  <div className="px-4 py-3 rounded-2xl rounded-bl-sm bg-slate-950/45 border border-white/[0.04] flex gap-1.5 items-center">
+                    {[0, 1, 2].map(i => (
+                      <div
+                        key={i}
+                        className="w-1.5 h-1.5 rounded-full bg-beyond-pink/60 animate-bounce"
+                        style={{ animationDelay: `${i * 0.2}s` }}
+                      />
                     ))}
                   </div>
                 </div>
@@ -710,24 +689,18 @@ function AvatarContent() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Chat input */}
-            <div style={{
-              padding: '12px 16px',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
-              display: 'flex', gap: '8px',
-            }}>
+            {/* Chat Input */}
+            <div className="p-4 border-t border-white/[0.06] flex gap-2.5 bg-slate-950/20">
               <button
                 onClick={isListening ? stopListening : startListening}
-                style={{
-                  width: '38px', height: '38px', borderRadius: '10px', border: 'none', flexShrink: 0,
-                  background: isListening ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)',
-                  color: isListening ? '#ef4444' : '#64748b', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  animation: isListening ? 'pulse 1.5s ease-in-out infinite' : 'none',
-                  transition: 'all 0.2s',
-                }}
+                className={cn(
+                  "w-10 h-10 rounded-xl border-none flex-shrink-0 flex items-center justify-center cursor-pointer transition-all duration-300",
+                  isListening
+                    ? "bg-red-500/20 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse"
+                    : "bg-white/[0.04] text-slate-400 hover:text-white hover:bg-white/[0.08]"
+                )}
               >
-                <Mic size={16} />
+                <Mic size={16} className={cn(isListening && "animate-pulse scale-110")} />
               </button>
               <input
                 type="text"
@@ -735,65 +708,56 @@ function AvatarContent() {
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                 placeholder="Ask the avatar anything..."
-                style={{
-                  flex: 1, padding: '9px 14px', borderRadius: '10px',
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.07)',
-                  color: 'white', fontSize: '13px', outline: 'none',
-                  fontFamily: 'inherit',
-                }}
+                className="flex-1 bg-slate-950/40 hover:bg-slate-950/60 border border-white/[0.06] focus:border-beyond-purple/40 rounded-xl text-xs text-white px-4 outline-none font-sans shadow-inner transition-all duration-300 placeholder:text-slate-600"
               />
               <button
                 onClick={() => sendMessage()}
                 disabled={!chatInput.trim() || isAIThinking}
-                style={{
-                  width: '38px', height: '38px', borderRadius: '10px', border: 'none', flexShrink: 0,
-                  background: chatInput.trim() && !isAIThinking
-                    ? 'linear-gradient(135deg, #7c3aed, #db2777)'
-                    : 'rgba(255,255,255,0.04)',
-                  color: chatInput.trim() && !isAIThinking ? 'white' : '#475569',
-                  cursor: chatInput.trim() && !isAIThinking ? 'pointer' : 'not-allowed',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  transition: 'all 0.2s',
-                }}
+                className={cn(
+                  "w-10 h-10 rounded-xl border-none flex-shrink-0 flex items-center justify-center transition-all duration-300 active:scale-95",
+                  chatInput.trim() && !isAIThinking
+                    ? "bg-gradient-to-r from-beyond-purple to-beyond-pink text-white cursor-pointer hover:shadow-lg hover:shadow-beyond-purple/15"
+                    : "bg-white/[0.03] text-slate-600 cursor-not-allowed"
+                )}
               >
-                <Send size={16} />
+                <Send size={15} />
               </button>
             </div>
           </div>
 
-          {/* Error */}
+          {/* Error Banner */}
           <AnimatePresence>
             {error && (
-              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                style={{
-                  background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                  borderRadius: '12px', padding: '12px 16px',
-                  color: '#f87171', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px',
-                }}
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="bg-red-500/10 border border-red-500/20 rounded-xl p-3.5 text-xs text-red-400 flex items-center gap-2.5 shadow-lg"
               >
-                <span style={{ flex: 1 }}>{error}</span>
-                <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: '2px' }}>
+                <span className="flex-1 font-bold">{error}</span>
+                <button onClick={() => setError(null)} className="bg-transparent border-none text-red-400 hover:text-red-300 cursor-pointer p-0.5">
                   <X size={14} />
                 </button>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Mode info */}
-          <div style={{
-            background: 'rgba(10,18,30,0.4)',
-            border: '1px solid rgba(255,255,255,0.04)',
-            borderRadius: '12px', padding: '12px 16px',
-          }}>
-            <div style={{ color: '#64748b', fontSize: '12px', fontWeight: 500, marginBottom: '4px' }}>
-              {mode === 'realtime' ? '⚡ Real-time Mode' : '🎬 Realistic Mode'}
+          {/* Mode Info Footer */}
+          <div className="bg-slate-950/45 border border-white/[0.04] rounded-2xl p-4 flex gap-3 shadow-lg relative overflow-hidden group/info">
+            <div className="absolute inset-0 bg-gradient-to-r from-beyond-purple/5 to-transparent pointer-events-none opacity-0 group-hover/info:opacity-100 transition-opacity duration-500" />
+            <div className="w-8 h-8 rounded-xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-center flex-shrink-0">
+              {mode === 'realtime' ? <Zap size={14} className="text-amber-400 animate-pulse" /> : <Sparkles size={14} className="text-beyond-purple animate-pulse" />}
             </div>
-            <div style={{ color: '#334155', fontSize: '11px', lineHeight: '1.5' }}>
-              {mode === 'realtime'
-                ? 'Instant browser speech synthesis with live facial animations—emotions, lip sync & blinking.'
-                : 'AI-generated photorealistic video. Requires API keys and takes time to process.'
-              }
+            <div className="flex-1 flex flex-col justify-center min-w-0">
+              <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                {mode === 'realtime' ? 'Real-time Core' : 'Realistic Core'}
+              </div>
+              <div className="text-[9px] text-slate-500 leading-relaxed mt-1">
+                {mode === 'realtime'
+                  ? 'Low-latency local speech synthesis with instant, micro-expressive 2D physical morphing.'
+                  : 'Premium AI video generator. Deep-rendered face tracking. Requires active server sync.'
+                }
+              </div>
             </div>
           </div>
         </div>
@@ -810,9 +774,10 @@ function AvatarContent() {
           0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.3); }
           50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
         }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
         * { box-sizing: border-box; }
       `}</style>
     </div>
