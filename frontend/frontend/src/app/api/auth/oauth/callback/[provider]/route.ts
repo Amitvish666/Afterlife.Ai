@@ -178,6 +178,23 @@ export async function GET(request: NextRequest, { params }: { params: { provider
         localStorage.setItem('oauth_user_id', userId);
         localStorage.setItem('oauth_user_name', userName);
         localStorage.setItem('oauth_user_email', userEmail);
+
+        // Pre-hydrate Zustand useAuthStore ('auth-storage') directly to prevent race conditions during page transition
+        var authState = {
+          state: {
+            user: {
+              id: userId,
+              name: userName || userEmail.split('@')[0] || 'User',
+              email: userEmail,
+              created_at: new Date().toISOString(),
+              consent_given: false,
+              retention_period: 365
+            },
+            isAuthenticated: true
+          },
+          version: 0
+        };
+        localStorage.setItem('auth-storage', JSON.stringify(authState));
       } catch(e) {
         console.error('Failed to store tokens', e);
       }
