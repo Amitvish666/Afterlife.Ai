@@ -78,6 +78,9 @@ redis_data/
 # PostgreSQL data
 postgres_data/
 
+# Vercel build output (should never be committed - causes Vercel to skip real builds)
+.vercel/output/
+
 # Archives
 *.rar
 
