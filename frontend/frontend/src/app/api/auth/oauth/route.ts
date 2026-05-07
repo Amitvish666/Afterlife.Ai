@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { usersDb, hashPassword } from '../db';
+import { getUserByEmail, createUser, hashPassword } from '../db';
 
 const SECRET_KEY = 'your-secret-key-change-in-production';
 const ALGORITHM = 'HS256';
@@ -113,19 +113,18 @@ export async function POST(request: NextRequest) {
     const mockEmail = `user@${provider}.com`;
     const mockName = `${provider.charAt(0).toUpperCase() + provider.slice(1)} User`;
 
-    // Check if user already exists (in production, this would check the OAuth provider's user ID)
-    let user = usersDb[mockEmail];
+    // Check if user already exists
+    let user = await getUserByEmail(mockEmail);
 
     if (!user) {
       // Create new user
-      user = {
+      user = await createUser({
         id: mockUserId,
         email: mockEmail,
         name: mockName,
         passwordHash: hashPassword(`oauth-${provider}-${timestamp}`),
         createdAt: new Date().toISOString(),
-      };
-      usersDb[mockEmail] = user;
+      });
     }
 
     const accessToken = createAccessToken({ sub: user.id, email: mockEmail });
