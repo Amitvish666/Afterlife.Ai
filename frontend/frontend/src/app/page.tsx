@@ -353,7 +353,7 @@ export default function HomePage() {
               >
                 {/* Icon wrapper with glow shadow matching feature color */}
                 <div 
-                  className={`w-13 h-13 rounded-2xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-6 transition-transform duration-300 group-hover:scale-110 shadow-lg`}
+                  className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-6 transition-transform duration-300 group-hover:scale-110 shadow-lg`}
                   style={{ boxShadow: `0 8px 24px -4px ${feature.shadowColor}` }}
                 >
                   <feature.icon className="w-6 h-6 text-white" />
@@ -507,7 +507,7 @@ export default function HomePage() {
       </section>
 
       {/* Trust Safeguards Badges */}
-      <section className="py-16 border-t border-surface-900/60 bg-surface-950/25 relative z-10">
+      <section id="pricing" className="py-16 border-t border-surface-900/60 bg-surface-950/25 relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 justify-items-center">
             {[
